@@ -9,21 +9,44 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown...3
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:::
-```{r cars}
-summary(cars)
+```{r}
+divvy <- read.csv("divvy data.csv")
+head(divvy)
+```
+```{r}
+library(dplyr)
+library(readr)
+library(purrr)
+library(stringr)
+library(tibble)
+library(magick)
+library(aws.s3)
 ```
 
-## Including Plots
+```{r}
+save_object(
+  object = "file1",
+  bucket = "divvy-tripdata", 
+  file = "202004-divvy-tripdata.zip"
+)
+bucket_exists("s3://divvy-tripdata/")
+data <- get_bucket_df(
+  bucket = "s3://divvy-tripdata/", 
+  region = "us-east-1", 
+  max = 20000
+) %>% 
+  as_tibble()
+`# Define the bucket and object
+bucket <- "divvy-tripdata" 
+object <- "index.html" # Read data directly from the public bucket 
+data <- s3read_using(read.csv, object = object, bucket = bucket)
 
-You can also embed plots, for example:
+save_object(
+  object = "202004-divvy-tripdata.zip",
+  bucket = "s3://divvy-tripdata/", 
+  region = "us-east-1",
+  file = "202004-divvy-tripdata.zip"
+)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
