@@ -23,30 +23,48 @@ library(magick)
 library(aws.s3)
 ```
 
-```{r}
-save_object(
-  object = "file1",
-  bucket = "divvy-tripdata", 
-  file = "202004-divvy-tripdata.zip"
-)
-bucket_exists("s3://divvy-tripdata/")
+```{r Reading from S3 bucket}
+bucket_exists("s3://divvy-tripdata/") #check bucket exists
+
 data <- get_bucket_df(
   bucket = "s3://divvy-tripdata/", 
   region = "us-east-1", 
   max = 20000
 ) %>% 
-  as_tibble()
-`# Define the bucket and object
-bucket <- "divvy-tripdata" 
-object <- "index.html" # Read data directly from the public bucket 
-data <- s3read_using(read.csv, object = object, bucket = bucket)
+  as_tibble() #find contents of bucket
 
-save_object(
-  object = "202004-divvy-tripdata.zip",
-  bucket = "s3://divvy-tripdata/", 
-  region = "us-east-1",
-  file = "202004-divvy-tripdata.zip"
-)
+keys <- data[1:54,]$Key #get zip files that we want
 
+save_object(object = keys[[1]], bucket = "divvy-tripdata",region = "us-east-1", file = temp) 
+s3read_using(FUN = save_object, object = keys[[1]], bucket = "divvy-tripdata", region = "us-east-1", file = temp)
+
+download_and_unzip <- function(key) { 
+  temp <- tempfile() 
+  save_object(object = key, bucket = "divvy-tripdata",region = "us-east-1", file = temp) 
+  unzipped_files <- unzip(temp, exdir = tempdir()) 
+  print(paste("File ", key, " unzipped"))
+  return(read.csv(unzipped_files[1]))
+} # Function to unzip each file into a temp file 
+
+# Apply function to each key in your data frame 
+result_list <- lapply(keys, download_and_unzip)
+
+# Combine into a single data frame 
+result_df <- do.call(rbind, result_list)
+
+
+# save_object(
+#   object = "202004-divvy-tripdata.zip",
+#   bucket = "s3://divvy-tripdata/", 
+#   region = "us-east-1",
+#   file = "202004-divvy-tripdata.zip"
+# )
+
+#Should save as a RData file to prevent having to run this every time
+```
+
+
+```{r Reading from S3 bucket}
+load("InitRData.RDataTmp")
 ```
 
