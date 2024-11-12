@@ -133,4 +133,34 @@ bike_map <- ggmap(chi_map) +
 bike_map
 ```
 
+## NBA Schedule
+```{r cars}
+#install.packages("hoopR")
+library(hoopR)
+
+nba_20 <- nba_schedule(league_id = "00", season = 2020)
+nba_21 <- nba_schedule(league_id = "00", season = 2021)
+nba_22 <- nba_schedule(league_id = "00", season = 2022)
+nba_23 <- nba_schedule(league_id = "00", season = 2023)
+nba_24 <- nba_schedule(league_id = "00", season = 2024)
+
+nba <- full_join(nba_20, full_join(nba_21, full_join(nba_22, full_join(nba_23, nba_24))))
+
+nba <- filter(nba, arena_name == "United Center", game_status == "3")
+```
+
+## MLB Schedule
+```{r}
+#install.packages("baseballr")
+library(baseballr)
+
+mlb_20 <- mlb_schedule(season = 2020, level_ids = "1")
+mlb_21 <- mlb_schedule(season = 2021, level_ids = "1")
+mlb_22 <- mlb_schedule(season = 2022, level_ids = "1")
+mlb_23 <- mlb_schedule(season = 2023, level_ids = "1")
+mlb_24 <- mlb_schedule(season = 2024, level_ids = "1")
+
+mlb <- full_join(mlb_20, full_join(mlb_21, full_join(mlb_22, full_join(mlb_23, mlb_24))))
+mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field")
+```
 
