@@ -68,3 +68,69 @@ result_df <- do.call(rbind, result_list)
 load("InitRData.RDataTmp")
 ```
 
+```{r}
+summary(result_df)
+```
+```{r}
+library(dplyr)
+head(result_df)
+unique(result_df$rideable_type)
+summary(as.factor(result_df$rideable_type))
+
+scooter <- result_df %>% filter(rideable_type == "electric_scooter")
+summary(scooter)
+docked_bike <- result_df %>% filter(rideable_type == "docked_bike") 
+summary(classic_bike)
+```
+
+```{r}
+library(ggmap)
+register_stadiamaps("9e07144d-cdab-48f9-a35d-298e1bbece2e")
+
+# Define the bounding box for Chicago
+bbox <- c(left = -87.9400, bottom = 41.6445, right = -87.5240, top = 42.0230)
+
+# Get the map
+chi_map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner")
+
+
+# Plot the map
+scooter_map <- ggmap(chi_map) +
+  geom_point(data = scooter, aes(x = start_lng, y = start_lat, alpha = 0.05, color = "red")) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Scooter Map"
+  )+
+  guides(alpha = "none")
+
+scooter_map
+```
+
+```{r}
+# Plot the map
+bike_map <- ggmap(chi_map) +
+  geom_point(data = docked_bike, aes(x = start_lng, y = start_lat, alpha = 0.05, color = "blue")) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Bike Map"
+  )+
+  guides(alpha = "none")
+
+bike_map
+```
+
+
