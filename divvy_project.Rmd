@@ -167,3 +167,13 @@ mlb <- rbind(mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
 mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field")
 ```
 
+## NFL Schedule
+```{r}
+#install.packages("nflfastR")
+library(nflfastR)
+nfl <- nflreadr::load_schedules()
+nfl$gameday <- as.Date(nfl$gameday)
+nfl <- nfl %>%
+  filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & home_team == "CHI")
+```
+
