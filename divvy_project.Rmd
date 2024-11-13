@@ -35,7 +35,7 @@ library(aws.s3)
 library(tidyr)
 ```
 
-```{r Reading from S3 bucket}
+```{r Reading from S3 bucket, eval = FALSE}
 bucket_exists("s3://divvy-tripdata/") #check bucket exists
 
 data <- get_bucket_df(
@@ -359,10 +359,11 @@ ggplot(events_per_day, aes(x = date, y = events)) +
 ```
 
 ```{r Filter to game days}
-filtered_df <- result_df %>% mutate(start_date = as.Date(started_at)) %>% filter(start_date %in% set_dates)
+filtered_df <- result_df %>% mutate(start_date = as.Date(started_at)) %>% filter(start_date %in% dates_long$date)
 ```
 
 ```{r}
+load("FilteredAndTeams.RData")
 summary(filtered_df)
 filtered_df <- filtered_df %>% na.omit()
 ```
