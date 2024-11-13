@@ -21,6 +21,7 @@ library(stringr)
 library(tibble)
 library(magick)
 library(aws.s3)
+library(tidyr)
 ```
 
 ```{r Reading from S3 bucket}
@@ -79,7 +80,11 @@ summary(as.factor(result_df$rideable_type))
 
 scooter <- result_df %>% filter(rideable_type == "electric_scooter")
 summary(scooter)
-docked_bike <- result_df %>% filter(rideable_type == "docked_bike") 
+docked_bike <- result_df %>% filter(rideable_type == "docked_bike")
+```
+
+
+```{r}
 summary(classic_bike)
 ```
 
@@ -137,7 +142,7 @@ bike_map
 ```{r cars}
 #install.packages("hoopR")
 library(hoopR)
-
+nba_19 <- nba_schedule(league_id = "00", season = 2019)
 nba_20 <- nba_schedule(league_id = "00", season = 2020)
 nba_21 <- nba_schedule(league_id = "00", season = 2021)
 nba_22 <- nba_schedule(league_id = "00", season = 2022)
@@ -145,10 +150,12 @@ nba_23 <- nba_schedule(league_id = "00", season = 2023)
 nba_24 <- nba_schedule(league_id = "00", season = 2024)
 
 #nba <- full_join(nba_20, full_join(nba_21, full_join(nba_22, full_join(nba_23, nba_24))))
-nba <- rbind(nba_20, nba_21, nba_22, nba_23, nba_24)
+nba <- rbind(nba_19,nba_20, nba_21, nba_22, nba_23, nba_24)
 
 nba <- filter(nba, arena_name == "United Center", game_status == "3")
+nba %>% arrange(desc(game_date))
 summary(nba)
+set_dates <- unique(nba$game_date)
 ```
 
 ## MLB Schedule
@@ -164,17 +171,15 @@ mlb_24 <- mlb_schedule(season = 2024, level_ids = "1")
 
 mlb <- rbind(mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
 #mlb <- full_join(mlb_20, full_join(mlb_21, full_join(mlb_22, full_join(mlb_23, mlb_24))))
-mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field")
+mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
+set_dates <-  unique(c(set_dates, unique(mlb$date))) 
 ```
 
-## NFL Schedule
 ```{r}
-#install.packages("nflfastR")
-library(nflfastR)
-nfl <- nflreadr::load_schedules()
-nfl$gameday <- as.Date(nfl$gameday)
-nfl <- nfl %>%
-  filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & home_team == "CHI")
+head(result_df)
+x <- head(result_df, 50) %>% mutate(start_date = as.Date(started_at))
+
+inner_join(x, mlb, by = c("start_date" = "date"))
 ```
 
 ## NHL Schedule
