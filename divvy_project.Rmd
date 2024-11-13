@@ -5,14 +5,25 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+## Introduction
 
+#### Questions
+We want to look at the trends of divvy bike and scooter data in Chiacgo, Illinois and how divvy use changes with events that occur throughout the year. Doing so will allow us to recommend business changes to improve divvy's revenue in Chicago. 
+
+#### Data Cleaning & Preprocessing
+Our data comes from many different sources. We will use divvy data from 2020-2024, as well as professional sports schedules from the same years. These sports schedules will come from R packages, and our important columns will be game date and game start time. To merge all sports schedule datasets, we will have to standardize the format of these dates and times.
+
+We will then merge this data with the divvy data to look at changes to divvy use on these pre-identified games and times. In terms of creating new values, we can look at the change/difference in divvy use from days without sporting events to days with games. 
+
+## Initial Data Analysis
+Data Cleaning, Exploratory Visualizations
+
+#### Divvy Data
 ```{r}
 divvy <- read.csv("divvy data.csv")
 head(divvy)
 ```
+
 ```{r}
 library(dplyr)
 library(readr)
@@ -64,7 +75,6 @@ result_df <- do.call(rbind, result_list)
 #Should save as a RData file to prevent having to run this every time
 ```
 
-
 ```{r Reading from S3 bucket}
 load("InitRData.RDataTmp")
 ```
@@ -82,7 +92,6 @@ scooter <- result_df %>% filter(rideable_type == "electric_scooter")
 summary(scooter)
 docked_bike <- result_df %>% filter(rideable_type == "docked_bike")
 ```
-
 
 ```{r}
 summary(classic_bike)
@@ -138,7 +147,8 @@ bike_map <- ggmap(chi_map) +
 bike_map
 ```
 
-## NBA Schedule
+#### Sports Schedules
+NBA Schedule
 ```{r cars}
 #install.packages("hoopR")
 library(hoopR)
@@ -155,10 +165,10 @@ nba <- rbind(nba_19,nba_20, nba_21, nba_22, nba_23, nba_24)
 nba <- filter(nba, arena_name == "United Center", game_status == "3")
 nba %>% arrange(desc(game_date))
 summary(nba)
-set_dates <- unique(nba$game_date)
+nba_dates <- unique(nba$game_date)
 ```
 
-## MLB Schedule
+MLB Schedule
 ```{r}
 #install.packages("baseballr")
 library(baseballr)
@@ -172,7 +182,8 @@ mlb_24 <- mlb_schedule(season = 2024, level_ids = "1")
 mlb <- rbind(mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
 #mlb <- full_join(mlb_20, full_join(mlb_21, full_join(mlb_22, full_join(mlb_23, mlb_24))))
 mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
-set_dates <-  unique(c(set_dates, unique(mlb$date))) 
+summary(mlb)
+mlb_dates <-  unique(mlb$date)
 ```
 
 ```{r}
@@ -182,8 +193,7 @@ x <- head(result_df, 50) %>% mutate(start_date = as.Date(started_at))
 inner_join(x, mlb, by = c("start_date" = "date"))
 ```
 
-
-## NFL Schedule
+NFL Schedule
 ```{r}
 #install.packages("nflfastR")
 library(nflfastR)
@@ -191,11 +201,11 @@ nfl <- nflreadr::load_schedules()
 nfl$gameday <- as.Date(nfl$gameday)
 nfl <- nfl %>%
   filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & stadium == "Soldier Field")
-set_dates <-  unique(c(set_dates, unique(nfl$gameday))) 
-
+summary(nfl)
+nfl_dates <-  unique(nfl$gameday) 
 ```
 
-## NHL Schedule
+NHL Schedule
 ```{r}
 #install.packages('fastRhockey')
 library(fastRhockey)
@@ -207,9 +217,62 @@ nhl24 <- load_nhl_schedule(2024)
 
 nhl <- rbind(nhl20, nhl21, nhl22, nhl23, nhl24, fill=TRUE)
 nhl <- nhl %>% filter(venue_name == "United Center") %>% mutate(game_date = as.Date(game_date))
-set_dates <-  unique(c(set_dates, unique(nhl$game_date))) 
+summary(nhl)
+nhl_dates <-  unique(nhl$game_date)
+```
 
+Combine into all Dates
+```{r}
+dates <- seq.Date(from = as.Date("2020-01-01"), to = as.Date("2024-12-31"), by = "day")
+dates <- data.frame(date = dates)
 
+mlb_dates <- as.Date(mlb_dates)
+nba_dates <- as.Date(nba_dates)
+nfl_dates <- as.Date(nfl_dates)
+nhl_dates <- as.Date(nhl_dates)
+dates <- dates %>%
+  mutate(mlb = if_else(date %in% mlb_dates, 1, 0),
+         nba = if_else(date %in% nba_dates, 1, 0),
+         nfl = if_else(date %in% nfl_dates, 1, 0),
+         nhl = if_else(date %in% nhl_dates, 1, 0))
+```
 
+Event "Calendar" By Sport
+```{r}
+library(ggplot2)
+library(tidyr)
+
+dates_long <- dates %>%
+  pivot_longer(cols = c(mlb, nhl, nba, nfl), 
+               names_to = "sport", 
+               values_to = "game", 
+               names_prefix = "_events") %>%
+  filter(game == 1)
+
+dates_long <- dates_long %>%
+  mutate(year = as.integer(format(date, "%Y")))
+
+ggplot(dates_long, aes(x = date, y = sport, color = sport)) +
+  geom_point(size = 3) +
+  scale_y_discrete(limits = c("mlb", "nhl", "nba", "nfl")) +
+  labs(x = "Date", y = "Sport", title = "Game Occurences by Sport") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  facet_wrap(~ year, scales = "free_x", ncol = 1)
+```
+
+Total Events Per Day
+```{r}
+events_per_day <- dates_long %>%
+  group_by(date) %>%
+  summarise(events = n()) %>%
+  mutate(year = as.integer(format(date, "%Y")))
+
+ggplot(events_per_day, aes(x = date, y = events)) +
+  geom_line(color = "blue", size = 1) +
+  labs(x = "Date", y = "Number of Events", title = "Sports Events Per Day") +
+  theme_minimal() +
+  facet_wrap(~ year, scales = "free_x", ncol = 1) + 
+  theme(legend.position = "none")
 ```
 
