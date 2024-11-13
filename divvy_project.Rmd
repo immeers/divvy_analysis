@@ -1,5 +1,5 @@
 ---
-title: "divvy_project"
+title: "An Analysis of Chicago's Divvy Transport"
 author: "Imogen Meers, Sarah Deussing, Sarah Cernugel"
 date: "`r Sys.Date()`"
 output: html_document
@@ -8,12 +8,12 @@ output: html_document
 ## Introduction
 
 #### Questions
-We want to look at the trends of divvy bike and scooter data in Chiacgo, Illinois and how divvy use changes with events that occur throughout the year. Doing so will allow us to recommend business changes to improve divvy's revenue in Chicago. 
+We want to look at the trends of Divvy bike and scooter data in Chicago, Illinois and how Divvy use changes with events that occur throughout the year. Doing so will allow us to recommend business changes to improve Divvy's revenue in Chicago. 
 
 #### Data Cleaning & Preprocessing
-Our data comes from many different sources. We will use divvy data from 2020-2024, as well as professional sports schedules from the same years. These sports schedules will come from R packages, and our important columns will be game date and game start time. To merge all sports schedule datasets, we will have to standardize the format of these dates and times.
+Our data comes from many different sources. We will use Divvy data from 2020-2024, as well as professional sports schedules from the same years. These sports schedules will come from R packages, and our important columns will be game date and game start time. To merge all sports schedule data sets, we will have to standardize the format of these dates and times.
 
-We will then merge this data with the divvy data to look at changes to divvy use on these pre-identified games and times. In terms of creating new values, we can look at the change/difference in divvy use from days without sporting events to days with games. 
+We will then merge this data with the Divvy data to look at changes to Divvy use on these pre-identified games and times. In terms of creating new values, we can look at the change/difference in Divvy use from days without sporting events to days with games. We will also look for patterns in vehicle type and membership, which will be useful to provide recommendations for where to adding new docks or make more bikes/scooters available depending on the event and if there are patterns between casual users vs members.
 
 ## Initial Data Analysis
 Data Cleaning, Exploratory Visualizations
@@ -89,12 +89,22 @@ unique(result_df$rideable_type)
 summary(as.factor(result_df$rideable_type))
 
 scooter <- result_df %>% filter(rideable_type == "electric_scooter")
-summary(scooter)
-docked_bike <- result_df %>% filter(rideable_type == "docked_bike")
-```
+scooter_sample <- sample_n(scooter, 5000)
 
-```{r}
-summary(classic_bike)
+summary(scooter)
+classic_bike <- result_df %>% filter(rideable_type == "classic_bike")
+classic_sample <- sample_n(classic_bike, 5000)
+
+docked_bike <- result_df %>% filter(rideable_type == "docked_bike")
+docked_sample <- sample_n(docked_bike, 5000)
+
+electric_bike <- result_df %>% filter(rideable_type == "electric_bike")
+electric_sample <- sample_n(electric_bike, 5000)
+
+member_sample <- result_df %>% filter(member_casual == "member") %>% sample_n(5000)
+casual_sample <- result_df %>% filter(member_casual == "casual") %>% sample_n(5000)
+
+unique(result_df$member_casual)
 ```
 
 ```{r}
@@ -110,7 +120,7 @@ chi_map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner")
 
 # Plot the map
 scooter_map <- ggmap(chi_map) +
-  geom_point(data = scooter, aes(x = start_lng, y = start_lat, alpha = 0.05, color = "red")) +
+  geom_point(data = scooter_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "red") +
   theme(
     axis.title.x = element_blank(),
     axis.title.y = element_blank(),
@@ -129,8 +139,8 @@ scooter_map
 
 ```{r}
 # Plot the map
-bike_map <- ggmap(chi_map) +
-  geom_point(data = docked_bike, aes(x = start_lng, y = start_lat, alpha = 0.05, color = "blue")) +
+classic_map <- ggmap(chi_map) +
+  geom_point(data = classic_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "blue") +
   theme(
     axis.title.x = element_blank(),
     axis.title.y = element_blank(),
@@ -140,16 +150,91 @@ bike_map <- ggmap(chi_map) +
     axis.ticks.y = element_blank(),
   ) + 
   labs(
-    title = "Bike Map"
+    title = "Classic Bike Map"
   )+
   guides(alpha = "none")
 
-bike_map
+docked_map <- ggmap(chi_map) +
+  geom_point(data = docked_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "green") +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Docked Bike Map"
+  )+
+  guides(alpha = "none")
+
+
+electric_map <- ggmap(chi_map) +
+  geom_point(data = electric_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "orange") +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Electric Bike Map"
+  )+
+  guides(alpha = "none")
+
+classic_map
+electric_map
+docked_map
+
+
+library(gridExtra)
+grid.arrange(scooter_map, classic_map, electric_map, docked_map, nrow = 2, ncol = 2)
+```
+```{r}
+# Plot the map
+member_map <- ggmap(chi_map) +
+  geom_point(data = member_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "blue") +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Member Map"
+  )+
+  guides(alpha = "none")
+
+casual_map <- ggmap(chi_map) +
+  geom_point(data = casual_sample, aes(x = start_lng, y = start_lat, alpha = 0.05), color = "green") +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) + 
+  labs(
+    title = "Casual Map"
+  )+
+  guides(alpha = "none")
+
+library(gridExtra)
+grid.arrange(casual_map, member_map, ncol=2)
 ```
 
+<<<<<<< Updated upstream
 #### Sports Schedules
 NBA Schedule
-```{r cars}
+
+## NBA Schedule
+```{r}
 #install.packages("hoopR")
 library(hoopR)
 nba_19 <- nba_schedule(league_id = "00", season = 2019)
@@ -173,27 +258,23 @@ MLB Schedule
 #install.packages("baseballr")
 library(baseballr)
 
+mlb_19 <- mlb_schedule(season = 2019, level_ids = "1")
 mlb_20 <- mlb_schedule(season = 2020, level_ids = "1")
 mlb_21 <- mlb_schedule(season = 2021, level_ids = "1")
 mlb_22 <- mlb_schedule(season = 2022, level_ids = "1")
 mlb_23 <- mlb_schedule(season = 2023, level_ids = "1")
 mlb_24 <- mlb_schedule(season = 2024, level_ids = "1")
 
-mlb <- rbind(mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
+mlb <- rbind(mlb_19, mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
 #mlb <- full_join(mlb_20, full_join(mlb_21, full_join(mlb_22, full_join(mlb_23, mlb_24))))
 mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
 summary(mlb)
 mlb_dates <-  unique(mlb$date)
 ```
 
-```{r}
-head(result_df)
-x <- head(result_df, 50) %>% mutate(start_date = as.Date(started_at))
 
-inner_join(x, mlb, by = c("start_date" = "date"))
-```
 
-NFL Schedule
+## NFL Schedule
 ```{r}
 #install.packages("nflfastR")
 library(nflfastR)
@@ -209,13 +290,14 @@ NHL Schedule
 ```{r}
 #install.packages('fastRhockey')
 library(fastRhockey)
+nhl19 <- load_nhl_schedule(2019)
 nhl20 <- load_nhl_schedule(2020)
 nhl21 <- load_nhl_schedule(2021)
 nhl22 <- load_nhl_schedule(2022)
 nhl23 <- load_nhl_schedule(2023)
 nhl24 <- load_nhl_schedule(2024)
 
-nhl <- rbind(nhl20, nhl21, nhl22, nhl23, nhl24, fill=TRUE)
+nhl <- rbind(nhl19, nhl20, nhl21, nhl22, nhl23, nhl24, fill=TRUE)
 nhl <- nhl %>% filter(venue_name == "United Center") %>% mutate(game_date = as.Date(game_date))
 summary(nhl)
 nhl_dates <-  unique(nhl$game_date)
@@ -274,5 +356,14 @@ ggplot(events_per_day, aes(x = date, y = events)) +
   theme_minimal() +
   facet_wrap(~ year, scales = "free_x", ncol = 1) + 
   theme(legend.position = "none")
+```
+
+```{r Filter to game days}
+filtered_df <- result_df %>% mutate(start_date = as.Date(started_at)) %>% filter(start_date %in% set_dates)
+```
+
+```{r}
+summary(filtered_df)
+filtered_df <- filtered_df %>% na.omit()
 ```
 
