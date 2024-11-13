@@ -190,7 +190,7 @@ library(nflfastR)
 nfl <- nflreadr::load_schedules()
 nfl$gameday <- as.Date(nfl$gameday)
 nfl <- nfl %>%
-  filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & home_team == "CHI")
+  filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & stadium == "Soldier Field")
 set_dates <-  unique(c(set_dates, unique(nfl$gameday))) 
 
 ```
@@ -206,8 +206,9 @@ nhl23 <- load_nhl_schedule(2023)
 nhl24 <- load_nhl_schedule(2024)
 
 nhl <- rbind(nhl20, nhl21, nhl22, nhl23, nhl24, fill=TRUE)
-nhl <- nhl %>% filter(home_team_name == "Chicago Blackhawks") %>% mutate(game_date = as.Date(game_date))
+nhl <- nhl %>% filter(venue_name == "United Center") %>% mutate(game_date = as.Date(game_date))
 set_dates <-  unique(c(set_dates, unique(nhl$game_date))) 
+
 
 
 ```
