@@ -182,6 +182,19 @@ x <- head(result_df, 50) %>% mutate(start_date = as.Date(started_at))
 inner_join(x, mlb, by = c("start_date" = "date"))
 ```
 
+
+## NFL Schedule
+```{r}
+#install.packages("nflfastR")
+library(nflfastR)
+nfl <- nflreadr::load_schedules()
+nfl$gameday <- as.Date(nfl$gameday)
+nfl <- nfl %>%
+  filter(gameday >= as.Date('2020-01-01') & gameday <= as.Date('2024-12-31') & home_team == "CHI")
+set_dates <-  unique(c(set_dates, unique(nfl$gameday))) 
+
+```
+
 ## NHL Schedule
 ```{r}
 #install.packages('fastRhockey')
@@ -193,6 +206,9 @@ nhl23 <- load_nhl_schedule(2023)
 nhl24 <- load_nhl_schedule(2024)
 
 nhl <- rbind(nhl20, nhl21, nhl22, nhl23, nhl24, fill=TRUE)
-nhl <- nhl %>% filter(home_team_name == "Chicago Blackhawks")
+nhl <- nhl %>% filter(home_team_name == "Chicago Blackhawks") %>% mutate(game_date = as.Date(game_date))
+set_dates <-  unique(c(set_dates, unique(nhl$game_date))) 
+
+
 ```
 
