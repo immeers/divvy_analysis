@@ -33,6 +33,8 @@ library(tibble)
 library(magick)
 library(aws.s3)
 library(tidyr)
+library(ggplot2)
+library(ggrepel)
 ```
 
 ```{r Reading from S3 bucket, eval = FALSE}
@@ -229,10 +231,6 @@ library(gridExtra)
 grid.arrange(casual_map, member_map, ncol=2)
 ```
 
-<<<<<<< Updated upstream
-#### Sports Schedules
-NBA Schedule
-
 ## NBA Schedule
 ```{r}
 #install.packages("hoopR")
@@ -267,6 +265,13 @@ mlb_24 <- mlb_schedule(season = 2024, level_ids = "1")
 
 mlb <- rbind(mlb_19, mlb_20, mlb_21, mlb_22, mlb_23, mlb_24)
 #mlb <- full_join(mlb_20, full_join(mlb_21, full_join(mlb_22, full_join(mlb_23, mlb_24))))
+
+mlb_wrigley <- mlb %>% filter(venue_name == "Wrigley Field") %>% mutate(date = as.Date(date))
+wrigley_dates <- unique(mlb_wrigley$date)
+
+mlb_grfield <- mlb %>% filter(venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
+grfield_dates <- unique(mlb_grfield$date)
+
 mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
 summary(mlb)
 mlb_dates <-  unique(mlb$date)
@@ -366,5 +371,76 @@ filtered_df <- result_df %>% mutate(start_date = as.Date(started_at)) %>% filter
 load("FilteredAndTeams.RData")
 summary(filtered_df)
 filtered_df <- filtered_df %>% na.omit()
+```
+
+```{r}
+wrigley_df <- result_df %>% filter((start_lat <= 41.95 & start_lat >= 41.94 & start_lng <= -87.65 & start_lng >= -87.66 )|(end_lat <= 41.95 & end_lat >= 41.94 & end_lng <= -87.65 & end_lng >= -87.66) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% wrigley_dates, 1, 0))
+
+plot_data<- wrigley_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+
+
+outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(8)
+
+outliers$desc <- c("Dead & Co Concert", "", "Zac Brown Band Concert", "Dead & Co Concert", "P!NK Concert", "Chicago Pride", "", "Belmont Sheffield Music Fest")
+
+wrigley_graph <- ggplot() + 
+  geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in Wrigley Field Radius")
+
+wrigley_graph
+```
+```{r}
+grfield_df <- result_df %>% filter((start_lat <= 41.835 & start_lat >= 41.825 & start_lng <= -87.63 & start_lng >= -87.64 )|(end_lat <= 41.835 & end_lat >= 41.825 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% grfield_dates, 1, 0))
+
+plot_data<- grfield_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+
+
+outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(8)
+
+outliers$desc <- rep(NA, 8)
+
+grfield_graph <- ggplot() + 
+  geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in Guarantee Rate Field Radius")
+
+grfield_graph
+```
+```{r}
+united_dates <- unique(c(nba_dates, nhl_dates))
+
+united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% nba_dates, "nba", ifelse(start_date %in% nhl_dates, "nhl", "none")))
+
+# united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% united_dates, 1, 0))
+
+plot_data<- united_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+
+# outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(8)
+
+outliers <- plot_data %>% filter(gameday == "none") %>% distinct() %>%arrange(desc(count)) %>% head(8)
+
+outliers$desc <- rep(NA, 8)
+
+united_graph <- ggplot() + 
+  geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in United Center Field Radius")
+
+# united_graph1 <- ggplot() + 
+#   geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in United Center Field Radius")
+```
+
+```{r}
+
+soldier_df <- result_df %>% filter((start_lat <= 41.87 & start_lat >= 41.86 & start_lng <= -87.61 & start_lng >= -87.62 )|(end_lat <= 41.87 & end_lat >= 41.86 & end_lng <= -87.61 & end_lng >= -87.62) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% nfl_dates, 1, 0))
+
+# united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% united_dates, 1, 0))
+
+plot_data<- soldier_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+
+outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(3)
+
+
+outliers$desc <- c("Coldplay Concert", "AC Milan vs. Real Madrid CF", "Chicago Fire FC vs.\n Inter Miami CF")
+
+soldier_graph <- ggplot() + 
+  geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red",segment.color = 'red' ,size = 3) + labs(title = "Count of Divvy Bikes in Soldier Field Radius")
+soldier_graph
+
 ```
 
