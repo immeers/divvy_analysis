@@ -107,6 +107,7 @@ member_sample <- result_df %>% filter(member_casual == "member") %>% sample_n(50
 casual_sample <- result_df %>% filter(member_casual == "casual") %>% sample_n(5000)
 
 unique(result_df$member_casual)
+head(result_df)
 ```
 
 ```{r}
@@ -245,13 +246,13 @@ nba_24 <- nba_schedule(league_id = "00", season = 2024)
 #nba <- full_join(nba_20, full_join(nba_21, full_join(nba_22, full_join(nba_23, nba_24))))
 nba <- rbind(nba_19,nba_20, nba_21, nba_22, nba_23, nba_24)
 
-nba <- filter(nba, arena_name == "United Center", game_status == "3")
+nba <- nba %>% filter(arena_name == "United Center" & game_status == 3)
 nba %>% arrange(desc(game_date))
 summary(nba)
 nba_dates <- unique(nba$game_date)
 ```
 
-MLB Schedule
+## MLB Schedule
 ```{r}
 #install.packages("baseballr")
 library(baseballr)
@@ -291,7 +292,7 @@ summary(nfl)
 nfl_dates <-  unique(nfl$gameday) 
 ```
 
-NHL Schedule
+# NHL Schedule
 ```{r}
 #install.packages('fastRhockey')
 library(fastRhockey)
@@ -372,9 +373,66 @@ load("FilteredAndTeams.RData")
 summary(filtered_df)
 filtered_df <- filtered_df %>% na.omit()
 ```
+## Venues
+```{r Venue Radius}
+library(stringr)
+library("timechange")
+# Define the custom function
+round_and_adjust <- function(number, adjust_by = 0.005) {
+  # Round the number to three decimal places
+  rounded_number <- round(number, 3)
+  
+  # Adjust the rounded number by the specified amount
+  adjusted_number <- rounded_number + adjust_by
+  
+  return(adjusted_number)
+}
 
+venue_df <- read.csv("chicago_venues.csv")
+venue_df$max_lat <- round_and_adjust(venue_df$Latitude, 0.005)
+venue_df$min_lat <- round_and_adjust(venue_df$Latitude, -0.005)
+venue_df$max_lng <- round_and_adjust(venue_df$Longitude, 0.005)
+venue_df$min_lng <- round_and_adjust(venue_df$Longitude, -0.005)
+
+venue_df$League <- str_extract(venue_df$Team, "(?<=\\().*(?=\\))")
+venue_df$Team <- str_extract(venue_df$Team, "^[^(]+")
+venue_df <- venue_df %>% select(1:3, League, everything())
+venue_df
+```
+
+
+## Cleaning Wrigley Schedule
 ```{r}
-wrigley_df <- result_df %>% filter((start_lat <= 41.95 & start_lat >= 41.94 & start_lng <= -87.65 & start_lng >= -87.66 )|(end_lat <= 41.95 & end_lat >= 41.94 & end_lng <= -87.65 & end_lng >= -87.66) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% wrigley_dates, 1, 0))
+game_times_wrigley <- read_csv("game_times.csv")
+
+clean_baseball <- function(game_times_wrigley, mlb_wrigley){
+  game_times_wrigley$Date <- as.Date(strptime(game_times_wrigley$Date, format = "%A, %b %d %Y"))
+
+
+
+joined_wrigley <- inner_join(mlb_wrigley, game_times_wrigley, by = c("date" = "Date"))
+
+
+joined_wrigley$game_date <- as.POSIXct(joined_wrigley$game_date,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+joined_wrigley$local_start_time <- time_at_tz(joined_wrigley$game_date, tz = "America/Chicago")
+
+joined_wrigley$local_end_time <- joined_wrigley$local_start_time + joined_wrigley$Time
+
+
+wrigley_schedule <- joined_wrigley %>% select(date, Time, local_start_time, local_end_time, season, game_date, game_number, day_night, series_game_number, series_description, teams_away_team_name,venue_name, description, teams_away_score, teams_away_is_winner,teams_home_score,teams_home_is_winner )
+
+return(wrigley_schedule)
+}
+game_times_gr <- read_csv("game_times_whitesox.csv")
+
+wrigley_schedule <- clean_baseball(game_times_wrigley, mlb_wrigley)
+grfield_schedule <- clean_baseball(game_times_gr, mlb_grfield)
+```
+
+
+## Wrigley Field Graph
+```{r}
+wrigley_df <- result_df %>% filter((start_lat <= venue_df$max_lat[1] & start_lat >= venue_df$min_lat[1] & start_lng <= venue_df$max_lng[1] & start_lng >= venue_df$min_lng[1] )|(end_lat <= venue_df$max_lat[1] & end_lat >= venue_df$min_lat[1] & end_lng <= venue_df$max_lng[1] & end_lng >= venue_df$min_lng[1]) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% wrigley_dates, 1, 0))
 
 plot_data<- wrigley_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
 
@@ -388,6 +446,22 @@ wrigley_graph <- ggplot() +
 
 wrigley_graph
 ```
+
+```{r}
+
+plot_data <- wrigley_df %>% group_by(start_date) %>% mutate(total_count = n())%>% group_by(start_date, member_casual) %>% mutate(count_member = n()) %>% arrange(start_date) %>% select(start_date, gameday, count_member, member_casual, total_count) %>% distinct() %>% mutate(percent = count_member/total_count)
+
+gameday <- plot_data %>% filter(gameday == 0)
+no_gameday <- plot_data %>% filter(gameday == 1)
+plot2023 <- plot_data %>% filter(start_date > as.Date("2023-01-01"))
+
+wrigley_graph1 <- ggplot(plot2023, aes(x = start_date, y = count_member, fill = member_casual)) + geom_bar(stat = "identity") + labs(title = "Stacked Bar Chart")
+
+
+head(wrigley_df)
+```
+
+## Guarantee Rate Field Graph
 ```{r}
 grfield_df <- result_df %>% filter((start_lat <= 41.835 & start_lat >= 41.825 & start_lng <= -87.63 & start_lng >= -87.64 )|(end_lat <= 41.835 & end_lat >= 41.825 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% grfield_dates, 1, 0))
 
@@ -403,7 +477,8 @@ grfield_graph <- ggplot() +
 
 grfield_graph
 ```
-```{r}
+## United Center Graph
+```{r United}
 united_dates <- unique(c(nba_dates, nhl_dates))
 
 united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% nba_dates, "nba", ifelse(start_date %in% nhl_dates, "nhl", "none")))
@@ -423,6 +498,7 @@ united_graph <- ggplot() +
 
 # united_graph1 <- ggplot() + 
 #   geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in United Center Field Radius")
+united_graph
 ```
 
 ```{r}
