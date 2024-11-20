@@ -291,6 +291,33 @@ nfl <- nfl %>%
 summary(nfl)
 nfl_dates <-  unique(nfl$gameday) 
 ```
+```{r}
+pbp <- load_pbp(2019:2024)
+pbp <- pbp %>% data.frame() %>% filter(home_team == "CHI") 
+pbp <- pbp[!is.na(pbp$time_of_day),]
+pbp_start <- pbp[!duplicated(pbp$game_id),]
+pbp_temp <- pbp[nrow(pbp):1,]
+pbp_end <- pbp_temp[!duplicated(pbp_temp$game_id),]
+
+
+pbp_end <- pbp_end %>%  select(game_date, away_team, season_type, time_of_day) %>% rename(end_time =time_of_day)
+pbp_start <- pbp_start %>%  select(game_date,time_of_day)%>% rename(start_time=time_of_day)
+dat <- merge(x = pbp_start, y = pbp_end, by = c("game_date"))
+
+head(dat)
+  dat$start_time <- as.POSIXct(dat$start_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+ dat$start_time <- time_at_tz( dat$start_time, tz = "America/Chicago")
+ 
+ 
+ dat$end_time <- as.POSIXct(dat$end_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+ dat$end_time <- time_at_tz(dat$end_time, tz = "America/Chicago")
+```
+
+```{r}
+head(pbp_start)  %>% select(game_date, game_id, time_of_day)
+summary(pbp %>% select(time_of_day))
+
+```
 
 # NHL Schedule
 ```{r}
@@ -401,7 +428,7 @@ venue_df
 ```
 
 
-## Cleaning Wrigley Schedule
+## Cleaning Baseball Schedule
 ```{r}
 game_times_wrigley <- read_csv("game_times.csv")
 
