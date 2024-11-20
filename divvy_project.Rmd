@@ -83,7 +83,9 @@ load("InitRData.RDataTmp")
 
 ```{r}
 summary(result_df)
+head(result_df)
 ```
+
 ```{r}
 library(dplyr)
 head(result_df)
@@ -276,6 +278,8 @@ grfield_dates <- unique(mlb_grfield$date)
 mlb <- mlb %>% filter(venue_name == "Wrigley Field" | venue_name == "Guaranteed Rate Field") %>% mutate(date = as.Date(date))
 summary(mlb)
 mlb_dates <-  unique(mlb$date)
+
+summary(as.Date(mlb_24$date))
 ```
 
 
@@ -291,6 +295,7 @@ nfl <- nfl %>%
 summary(nfl)
 nfl_dates <-  unique(nfl$gameday) 
 ```
+## Cleaning NFL Schedule
 ```{r}
 pbp <- load_pbp(2019:2024)
 pbp <- pbp %>% data.frame() %>% filter(home_team == "CHI") 
@@ -300,23 +305,24 @@ pbp_temp <- pbp[nrow(pbp):1,]
 pbp_end <- pbp_temp[!duplicated(pbp_temp$game_id),]
 
 
-pbp_end <- pbp_end %>%  select(game_date, away_team, season_type, time_of_day) %>% rename(end_time =time_of_day)
+pbp_end <- pbp_end %>%  select(game_date, time_of_day) %>% rename(end_time =time_of_day)
 pbp_start <- pbp_start %>%  select(game_date,time_of_day)%>% rename(start_time=time_of_day)
-dat <- merge(x = pbp_start, y = pbp_end, by = c("game_date"))
+soldier_schedule <- merge(x = pbp_start, y = pbp_end, by = c("game_date"))
 
-head(dat)
-  dat$start_time <- as.POSIXct(dat$start_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
- dat$start_time <- time_at_tz( dat$start_time, tz = "America/Chicago")
+soldier_schedule$start_time <- as.POSIXct(soldier_schedule$start_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+soldier_schedule$start_time <- time_at_tz(soldier_schedule$start_time, tz = "America/Chicago")
  
  
- dat$end_time <- as.POSIXct(dat$end_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
- dat$end_time <- time_at_tz(dat$end_time, tz = "America/Chicago")
+soldier_schedule$end_time <- as.POSIXct(soldier_schedule$end_time,format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+soldier_schedule$end_time <- time_at_tz(soldier_schedule$end_time, tz = "America/Chicago")
+soldier_schedule$game_date <- as.Date(soldier_schedule$game_date)
+
+inner_join(soldier_schedule, nfl, by = c("game_date"="gameday"))
 ```
 
 ```{r}
-head(pbp_start)  %>% select(game_date, game_id, time_of_day)
-summary(pbp %>% select(time_of_day))
-
+head(soldier_schedule)
+head
 ```
 
 # NHL Schedule
@@ -425,6 +431,7 @@ venue_df$League <- str_extract(venue_df$Team, "(?<=\\().*(?=\\))")
 venue_df$Team <- str_extract(venue_df$Team, "^[^(]+")
 venue_df <- venue_df %>% select(1:3, League, everything())
 venue_df
+write.csv(venue_df, "chicago_venues.csv")
 ```
 
 
@@ -446,7 +453,7 @@ joined_wrigley$local_start_time <- time_at_tz(joined_wrigley$game_date, tz = "Am
 joined_wrigley$local_end_time <- joined_wrigley$local_start_time + joined_wrigley$Time
 
 
-wrigley_schedule <- joined_wrigley %>% select(date, Time, local_start_time, local_end_time, season, game_date, game_number, day_night, series_game_number, series_description, teams_away_team_name,venue_name, description, teams_away_score, teams_away_is_winner,teams_home_score,teams_home_is_winner )
+wrigley_schedule <- joined_wrigley %>% select(date, Attendance, Time, local_start_time, local_end_time, season, game_date, game_number, day_night, series_game_number, series_description, teams_away_team_name,venue_name, description, teams_away_score, teams_away_is_winner,teams_home_score,teams_home_is_winner )
 
 return(wrigley_schedule)
 }
@@ -472,6 +479,94 @@ wrigley_graph <- ggplot() +
   geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red", size = 3) + labs(title = "Count of Divvy Bikes in Wrigley Field Radius")
 
 wrigley_graph
+```
+```{r}
+head(wrigley_df)
+summary(wrigley_df)
+library(lubridate)
+wrigley_df <-  wrigley_df %>% mutate(ride_time = difftime(ended_at, started_at,units = "mins"))
+
+
+##Look at distribution of ride times
+hist_plot <- wrigley_df[wrigley_df$gameday==1 & wrigley_df$member_casual == "casual",]
+time_plot <- c(as.numeric(hist_plot$ride_time %>% na.omit()))
+time_plot <- time_plot[time_plot> 0]
+is_outlier <- abs(time_plot - mean(time_plot)) > 2 * sd(time_plot)
+time_plot <- time_plot[!is_outlier]
+summary(hist_plot$ride_time)
+
+cas <- hist(time_plot, breaks = 30, main = "Histogram of Ride Times of Divvy Users", xlab = "ride_time", ylab = "Frequency", col = "darkgreen", border = "black") ##look to se what the distribution of divvy users ride time is, looks exponentail
+
+
+hist_plot <- wrigley_df[wrigley_df$gameday==1 & wrigley_df$member_casual == "member",]
+time_plot <- c(as.numeric(hist_plot$ride_time %>% na.omit()))
+time_plot <- time_plot[time_plot> 0]
+is_outlier <- abs(time_plot - mean(time_plot)) > 2 * sd(time_plot)
+time_plot <- time_plot[!is_outlier]
+summary(hist_plot$ride_time)
+
+mem <- hist(time_plot, breaks = 30, main = "Histogram of Ride Times of Divvy Users", xlab = "ride_time", ylab = "Frequency", col = "darkgreen", border = "black") ##look to se what the distribution of divvy users ride time is, looks exponentail
+
+
+library(gridExtra)
+grid.arrange(plot(cas), plot(mem), nrow=1)
+
+rate <- 1/mean(time_plot)
+
+
+summary(time_plot)
+
+wrigley_schedule$season <- as.numeric(wrigley_schedule$season)
+
+
+attendance_impute <- mean(wrigley_schedule[season == 2021,]$Attendance, na.rm=TRUE) #only the 2020 had missing data so impute with the 2021 season
+
+
+wrigley_schedule <- wrigley_schedule %>% mutate(Attendance = ifelse(is.na(Attendance), round(attendance_impute), Attendance)) #impute NA attendance
+
+master_wrigley <- inner_join(wrigley_schedule, wrigley_df, by= c("date" ="start_date")) #join the schedule and rides
+
+
+####################### whole day
+
+member_casual_perc <- master_wrigley %>% group_by(date, season, member_casual) %>% summarise(count = n()) %>% mutate(perc = count/sum(count))
+
+rider_count_per_game <- master_wrigley %>% group_by(date, season) %>% summarise(count = n()) #summarise num of riders per game
+
+
+rider_count_per_game <- merge(x = (master_wrigley %>% select(date, Attendance)), y = rider_count_per_game, by = "date") %>% distinct() %>% mutate(prob_rider = count/Attendance)
+
+expected_games_season <- rider_count_per_game %>% group_by(season) %>% summarise(expected_rider_games = sum(prob_rider))
+
+expected_games_season
+#######################
+
+################################ 3 hours + or - game
+master_wrigley <- master_wrigley %>% mutate(game_rider = ifelse(started_at >= local_start_time - hours(3) & started_at <= local_end_time + hours(3) | ended_at >= local_start_time - hours(3) & ended_at <= local_end_time + hours(3), 1, 0 )) #mark every classed as a game rider (ends or starts in radius on game day )
+
+member_casual_perc <- master_wrigley %>% group_by(date, season, member_casual) %>% summarise(count = n()) %>% mutate(perc = count/sum(count))
+
+rider_count_per_game <- master_wrigley %>% group_by(date, season) %>% summarise(sum(game_rider)) #summarise num of riders per game
+
+
+rider_count_per_game <- merge(x = (master_wrigley %>% select(date, Attendance)), y = rider_count_per_game, by = "date") %>% distinct() %>% mutate(prob_rider = `sum(game_rider)`/Attendance)
+
+
+expected_games_season <- rider_count_per_game %>% group_by(season) %>% summarise(expected_rider_games = sum(prob_rider))
+
+expected_games_season
+##############################
+
+################## Simulation of different
+summary(rider_count_per_game)
+
+
+
+#times, calculate normal distribution mean and sd
+#attendace and numebr of riders assuming 75% ride in and out calculate probs and expected number of games attended divvy bike
+
+#sample calc profit with pricing (old and new)
+#show price 
 ```
 
 ```{r}
