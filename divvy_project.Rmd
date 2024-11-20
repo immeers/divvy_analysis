@@ -452,6 +452,7 @@ return(wrigley_schedule)
 }
 game_times_gr <- read_csv("game_times_whitesox.csv")
 
+library(timechange)
 wrigley_schedule <- clean_baseball(game_times_wrigley, mlb_wrigley)
 grfield_schedule <- clean_baseball(game_times_gr, mlb_grfield)
 ```
@@ -482,8 +483,11 @@ gameday <- plot_data %>% filter(gameday == 0)
 no_gameday <- plot_data %>% filter(gameday == 1)
 plot2023 <- plot_data %>% filter(start_date > as.Date("2023-01-01"))
 
-wrigley_graph1 <- ggplot(plot2023, aes(x = start_date, y = count_member, fill = member_casual)) + geom_bar(stat = "identity") + labs(title = "Stacked Bar Chart")
+write.csv(plot2023, file = "member_casual.csv")
 
+wrigley_graph1 <- ggplot(plot2023, aes(x = start_date, y = count_member, fill = member_casual)) + geom_bar(stat = "identity") + labs(title = "Ride Type on Gameday")
+
+ggsave()
 
 head(wrigley_df)
 ```
@@ -493,7 +497,9 @@ head(wrigley_df)
 grfield_df <- result_df %>% filter((start_lat <= 41.835 & start_lat >= 41.825 & start_lng <= -87.63 & start_lng >= -87.64 )|(end_lat <= 41.835 & end_lat >= 41.825 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% grfield_dates, 1, 0))
 
 plot_data<- grfield_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+plot_data3 <- grfield_df %>% select(start_date, gameday, member_casual) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
 
+write.csv(plot_data3, file = "sox_member_casual.csv")
 
 outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(8)
 
@@ -513,6 +519,9 @@ united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & s
 # united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% united_dates, 1, 0))
 
 plot_data<- united_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+plot_data4 <- united_df %>% select(start_date, gameday, member_casual) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+
+write.csv(plot_data4, file = "bulls_hawks_member_casual.csv")
 
 # outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(8)
 
@@ -535,6 +544,7 @@ soldier_df <- result_df %>% filter((start_lat <= 41.87 & start_lat >= 41.86 & st
 # united_df <- result_df %>% filter((start_lat <= 41.885 & start_lat >= 41.875 & start_lng <= -87.67 & start_lng >= -87.68 )|(end_lat <= 41.885 & end_lat >= 41.875 & end_lng <= -87.63 & end_lng >= -87.64) ) %>% mutate(start_date = as.Date(started_at)) %>% mutate(gameday = ifelse(start_date %in% united_dates, 1, 0))
 
 plot_data<- soldier_df %>% select(start_date, gameday) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
+plot_data2 <- soldier_df %>% select(start_date, gameday, member_casual) %>% group_by(start_date, gameday) %>% mutate(count = n()) %>% unique()
 
 outliers <- plot_data %>% filter(gameday == 0) %>% distinct() %>%arrange(desc(count)) %>% head(3)
 
@@ -545,5 +555,6 @@ soldier_graph <- ggplot() +
   geom_point(data = plot_data, aes(x = start_date, y = count, color = as.factor(gameday))) +  geom_text_repel(data = outliers, aes(x = start_date, y = count, label = outliers$desc), color = "red",segment.color = 'red' ,size = 3) + labs(title = "Count of Divvy Bikes in Soldier Field Radius")
 soldier_graph
 
+write.csv(plot_data2, file = "bears_member_casual.csv")
 ```
 
