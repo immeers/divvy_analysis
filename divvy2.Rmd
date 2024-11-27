@@ -1,0 +1,103 @@
+---
+title: "Divvy2"
+author: "Imogen Meers"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+load("InitRData.RDataTmp")
+#write.csv(x = result_df, file = "divvy20_24.csv")
+```
+
+
+```{r}
+library(dplyr)
+head(result_df)
+
+result_df <- result_df  %>% mutate(start_date = as.Date(started_at)) %>% mutate(end_date = as.Date(ended_at))
+
+data23_4 <- result_df %>% filter(started_at > as.Date("2022-01-01") & started_at < as.Date("2024-01-01"))
+
+write.table()
+data23_4 <- data23_4 %>% select(-ride_id)
+head(data23_4)
+
+#########################
+tableau_top <- data23_4 %>% filter(start_station_id %in% c(top_5_start$start_station_id)) %>% select(start_station_id, start_station_name, start_lat, start_lng) %>% group_by(start_station_id) %>% summarise(start_station_id, start_station_name, avg_lat = mean(start_lat), avg_long = mean(start_lng), start_end = "start") %>% distinct() %>% rename(station_id = start_station_id, station_name = start_station_name)
+
+pop_end <- data23_4 %>% filter(end_station_id %in% c(top_5_end$end_station_id)) %>% select(end_station_id, end_station_name, end_lat, end_lng) %>% group_by(end_station_id) %>% summarise(end_station_id, end_station_name, avg_lat = mean(end_lat), avg_long = mean(end_lng), start_end = "end", ) %>% distinct() %>% rename(station_id = end_station_id, station_name = end_station_name)
+tableau_top <- rbind(tableau_top, pop_end)
+
+############################
+
+start_station <- data23_4 %>% mutate(start_date = as.Date(started_at))%>% group_by(start_station_id, start_station_name, start_date) %>% summarise(count = n(), lat = mean(start_lat), long = mean(start_lng))
+
+end_station <- data23_4 %>% mutate(end_date = as.Date(ended_at)) %>% group_by(end_station_id, end_station_name, end_date) %>% summarise(count = n(), lat = mean(end_lat), long = mean(end_lng))
+
+
+ordered_start <- start_station %>% filter(start_station_id != "")  %>% ungroup(start_date) %>% group_by(start_station_name, start_station_id) %>% summarise(start_count = mean(count), lat = mean(lat), long= mean(long))%>% ungroup() %>% mutate(new_id = row_number()) %>% arrange(desc(start_count)) %>% mutate(start_index = row_number()) %>% rename(station_name = start_station_name,  station_id=start_station_id)
+
+ordered_end <- end_station %>% filter(end_station_id != "")  %>% ungroup(end_date) %>% group_by(end_station_id, end_station_name) %>% summarise(end_count = mean(count), lat = mean(lat), long= mean(long)) %>% ungroup() %>% arrange(desc(end_count)) %>% mutate(end_index = row_number()) %>% rename(station_id = end_station_id, station_name = end_station_name)
+
+stations_counts <- full_join(start_ordered, end_ordered, by = c("station_name", "station_id"))
+
+no_stations_start <- data23_4[data23_4$start_station_id == "",]
+no_stations_end <- data23_4[ data23_4$end_station_id == "",]
+nrow(unique(ordered_start, by =c("start_station_id", "start_station_name")))
+dim(ordered_start)
+
+dim(ordered_end)
+nrow(unique(ordered_end, by =c("end_station_id", "end_station_name")))
+
+
+data_w_index <- inner_join(data23_4, ordered_start, by = "start_station_id")
+data_w_index <- data_w_index %>% rename(avg_start = avg_count)
+data_w_index <- inner_join(data_w_index, ordered_end, by = "end_station_id")
+data_w_index <- data_w_index %>% rename(avg_end = avg_count)
+
+head(data_w_index)
+
+
+
+
+
+write.table(x=tableau_top, sep = ",", file = 'tableau_top_stations.csv', col.names = TRUE, row.names = FALSE, append = FALSE)
+
+write.table(x=data_w_index, sep = ",", file = 'divvy_data2223.csv', col.names = TRUE, row.names = FALSE, append = FALSE)
+
+saveRDS(data_w_index, "DivvyData2223.RData")
+data_w_index <- data_w_index %>% rename(avg_start = avg_count)
+summary(data_w_index)
+
+
+end_stations_in_out <- data23_4 %>% filter(end_station_id %in% c(top_5_end$end_station_id)) %>% select(end_station_id, end_station_name, end_lat, end_lng) %>% group_by(end_station_id) %>% summarise(end_station_id, end_station_name, avg_lat = mean(end_lat), avg_long = mean(end_lng), start_end = "end", ) %>% distinct() %>% rename(station_id = end_station_id, station_name = end_station_name)
+tableau_top <- rbind(tableau_top, pop_end)
+
+
+
+
+start_stations_stats <- data_w_index %>% select(start_station_name, start_station_id, avg_start, start_index, start_lat, start_lng) %>% rename(station_name = start_station_name,  station_id=start_station_id, lat = start_lat, long = start_lng ) %>% group_by(station_name) %>% summarise(station_name, station_id, avg_start, start_index, lat =mean(lat), long=mean(long)) %>% distinct()
+
+end_stations_stats <- data_w_index %>% select(end_station_id, avg_end, end_index) %>% rename(station_id=end_station_id ) %>% distinct()
+
+stations_starts_ends <- inner_join(start_stations_stats, end_stations_stats, by = "station_id")
+stations_starts_ends <- stations_starts_ends %>% mutate(avg_diff = avg_start - avg_end)
+
+head(stations_starts_ends)
+
+write.table(x=stations_starts_ends, sep = ",", file = 'stations_start_end', col.names = TRUE, row.names = FALSE, append = FALSE)
+
+```
+
+

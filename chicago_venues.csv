@@ -1,7 +1,7 @@
-Venue,Latitude,Longitude,Team
-Wrigley Field,41.948463,-87.655800,Chicago Cubs (MLB)
-Soldier Field,41.862973,-87.616147,Chicago Bears (NFL)
-United Center,41.880692,-87.674370,Chicago Bulls (NBA)
-United Center,41.880692,-87.674370,Chicago Blackhawks (NHL)
-Guaranteed Rate Field,41.830081,-87.634047,Chicago White Sox (MLB)
-Wintrust Arena,41.8672,-87.6256,Chicago Sky (WNBA)
+"","X.2","X.1","X","League","Venue","Latitude","Longitude","Team","max_lat","min_lat","max_lng","min_lng"
+"1",1,1,1,NA,"Wrigley Field",41.948463,-87.6558,"Chicago Cubs ",41.953,41.943,-87.651,-87.661
+"2",2,2,2,NA,"Soldier Field",41.862973,-87.616147,"Chicago Bears ",41.868,41.858,-87.611,-87.621
+"3",3,3,3,NA,"United Center",41.880692,-87.67437,"Chicago Bulls ",41.886,41.876,-87.669,-87.679
+"4",4,4,4,NA,"United Center",41.880692,-87.67437,"Chicago Blackhawks ",41.886,41.876,-87.669,-87.679
+"5",5,5,5,NA,"Guaranteed Rate Field",41.830081,-87.634047,"Chicago White Sox ",41.835,41.825,-87.629,-87.639
+"6",6,6,6,NA,"Wintrust Arena",41.8672,-87.6256,"Chicago Sky ",41.872,41.862,-87.621,-87.631
