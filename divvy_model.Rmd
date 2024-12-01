@@ -1,0 +1,280 @@
+---
+title: "divvy_model"
+author: "Sarah Deussing"
+date: "2024-11-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+divvy <- read.csv("divvy_data2223.csv")
+```
+
+```{r}
+head(divvy)
+colnames(divvy)
+```
+
+```{r}
+library(dplyr)
+
+# composite for uniqueness
+divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
+divvy$endId <- paste0(divvy$end_station_id, "-", divvy$end_station_name)
+
+station_starts <- divvy %>%
+  count(startId) %>%
+  rename(checkouts = n)
+
+station_ends <- divvy %>%
+  count(endId) %>%
+  rename(checkins = n)
+
+# fill missing w 0s
+in_start <- setdiff(station_starts$startId, station_ends$endId)
+end_missing <- data.frame(endId = in_start, checkins = rep(0, length(in_start)))
+station_ends <- rbind(station_ends, end_missing)
+
+in_end <- setdiff(station_ends$endId, station_starts$startId)
+start_missing <- data.frame(startId = in_end, checkouts = rep(0, length(in_end)))
+station_starts <- rbind(station_starts, start_missing)
+
+station_counts <- merge(station_starts, station_ends, by.x = "startId", by.y = "endId", all = TRUE)
+station_counts$total <- station_counts$checkouts + station_counts$checkins
+colnames(station_counts) <- c("station_id", "checkouts", "checkins", "total")
+
+
+top <- station_counts %>% arrange(desc(total)) %>%
+  filter(total > 50000) # above 50,000 total checkins/outs
+```
+
+Get info for stations with > 50,000 total checkins/outs
+```{r}
+stations <- top$station_id
+top_info <- divvy %>%
+  filter(startId %in% stations | endId %in% stations)
+
+library(lubridate)
+top_info$started_at <- ymd_hms(top_info$started_at)
+top_info$ended_at <- ymd_hms(top_info$ended_at)
+
+#head(top_info)
+#colnames(top_info)
+```
+
+% of rides covered by these stations
+```{r}
+# percent covered
+total_trip_count <- nrow(divvy)
+top_count <- nrow(top_info)
+percent <- round((top_count / total_trip_count) * 100, 3)
+
+percent 
+length(unique(stations))
+```
+These top 121 stations cover 72% of the rides.
+
+Model Info
+```{r}
+top_model <- top_info[, c('started_at', 'ended_at', 'startId', 'endId', 'member_casual',
+                          'rideable_type')]
+
+top_model$day <- weekdays(top_model$started_at)
+top_model$year <- format(top_model$started_at, "%Y") 
+top_model$hour <- format(top_model$started_at, "%H")
+top_model$month <- format(top_model$started_at, "%B")
+
+top_model$started_date <- as.Date(top_model$started_at)
+top_model$ended_date <- as.Date(top_model$ended_at)
+
+top_model$ride_length <- as.numeric(difftime(top_model$ended_at, top_model$started_at, units = "mins"))
+```
+
+Add weather
+```{r}
+weather <- read.csv("weather.csv")
+weather$date <- as.Date(weather$date)
+```
+
+```{r}
+merged_model <- merge(top_model, weather, by.x = "started_date", by.y = "date", all.x = TRUE)
+```
+
+```{r}
+head(merged_model)
+```
+
+
+Prediction: The number of checkouts and checkins for these most popular stations.
+```{r}
+library(caret)
+# create daily stats
+checkouts <- merged_model %>%
+  group_by(startId, started_date) %>%
+  summarize(num_checkouts = n(),
+         avg_ride_length = mean(ride_length, na.rm = TRUE),
+         avg_ppt = mean(ppt, na.rm = TRUE),
+         avg_temp = mean(tavg, na.rm = TRUE),
+         perc_member = sum(member_casual == 'member')/n(),
+         day = first(day),
+         month = first(month)) %>% 
+  ungroup()
+# add lags for percent member, ride length, and num_checkouts
+checkouts <- checkouts %>%
+  group_by(startId) %>%
+  arrange(startId, started_date) %>%
+  mutate(prev_num_checkouts = lag(num_checkouts), 
+    prev_avg_ride_length = lag(avg_ride_length),  
+    prev_perc_member = lag(perc_member) ) %>%
+  ungroup()
+
+rownames(checkouts) <- paste0(checkouts$startId, "_", checkouts$started_date)
+#head(checkouts)
+
+checkins <- merged_model %>%
+  group_by(endId, started_date) %>%
+  summarize(num_checkins = n(),
+         avg_ride_length = mean(ride_length, na.rm = TRUE),
+         avg_ppt = mean(ppt, na.rm = TRUE),
+         avg_temp = mean(tavg, na.rm = TRUE),
+         perc_member = sum(member_casual == 'member')/n(),
+         day = first(day),
+         month = first(month)) %>% ungroup()
+# add lags for percent member, ride length, and num_checkins
+checkins <- checkins %>%
+  group_by(endId) %>%
+  arrange(endId, started_date) %>%
+  mutate(prev_num_checkins = lag(num_checkins), 
+    prev_avg_ride_length = lag(avg_ride_length),  
+    prev_perc_member = lag(perc_member) ) %>%
+  ungroup()
+
+rownames(checkins) <- paste0(checkins$endId, "_", checkins$started_date)
+```
+
+dummy vars
+```{r}
+# cols to use for prediction: avg_ppt, avg_temp, day, month, prev_num_checkouts/ins, prev_avg_ride_length, prev_perc_member
+# outcome var: num_checkouts/ins
+dummy_modelOut <- dummyVars(~ month + day, data = checkouts)
+checkouts_encoded <- predict(dummy_modelOut, newdata = checkouts)
+checkouts_encoded <- as.data.frame(checkouts_encoded)
+checkouts_final <- cbind(checkouts %>% 
+                           select(avg_ppt, avg_temp, prev_num_checkouts, prev_avg_ride_length, prev_perc_member, num_checkouts),
+                         checkouts_encoded)
+
+dummy_modelIn <- dummyVars(~ month + day, data = checkins)
+checkins_encoded <- predict(dummy_modelIn, newdata = checkins)
+checkins_encoded <- as.data.frame(checkins_encoded)
+checkins_final <- cbind(checkins %>% 
+                          select(avg_ppt, avg_temp, prev_num_checkins, prev_avg_ride_length, prev_perc_member, num_checkins),
+                        checkins_encoded)
+```
+
+
+XGBoost Model: Checkouts
+```{r}
+train_index <- sample(1:nrow(checkouts_final), size = 0.8 * nrow(checkouts_final))
+train_data <- checkouts_final[train_index, ]
+test_data <- checkouts_final[-train_index, ]
+
+library(xgboost)
+
+x_train <- train_data %>% select(-num_checkouts)
+y_train <- train_data$num_checkouts
+
+x_test <- test_data %>% select(-num_checkouts)
+y_test <- test_data$num_checkouts
+
+dtrain <- xgb.DMatrix(data = as.matrix(x_train), label = y_train)
+dtest <- xgb.DMatrix(data = as.matrix(x_test), label = y_test)
+```
+
+```{r}
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.1)
+
+# tune nrounds
+nrounds <- xgboost(
+  data = dtrain, 
+  params = params, 
+  nrounds = 1000,             
+  early_stopping_rounds = 50,     
+  print_every_n = 10,       
+  verbose = 1)
+
+best_nrounds <- nrounds$best_iteration
+
+checkouts_model <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = 1000, #best_nrounds,
+  print_every_n = 10,
+  verbose = 1)
+
+
+y_pred <- predict(checkouts_model, newdata = dtest)
+comp <- cbind(y_test, y_pred)
+
+
+#importance_matrix <- xgb.importance(feature_names = colnames(x_train), model = checkouts_model)
+#xgb.plot.importance(importance_matrix)
+```
+
+
+
+XGBoost Model: Checkins
+```{r}
+train_index <- sample(1:nrow(checkins_final), size = 0.8 * nrow(checkins_final))
+train_data <- checkins_final[train_index, ]
+test_data <- checkins_final[-train_index, ]
+
+x_train <- train_data %>% select(-num_checkins)
+y_train <- train_data$num_checkins
+
+x_test <- test_data %>% select(-num_checkins)
+y_test <- test_data$num_checkins
+
+dtrain <- xgb.DMatrix(data = as.matrix(x_train), label = y_train)
+dtest <- xgb.DMatrix(data = as.matrix(x_test), label = y_test)
+```
+
+```{r}
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.1)
+
+# tune nrounds
+nrounds <- xgboost(
+  data = dtrain, 
+  params = params, 
+  nrounds = 1000,             
+  early_stopping_rounds = 50,     
+  print_every_n = 10,       
+  verbose = 1)
+
+best_nrounds <- nrounds$best_iteration
+
+checkins_model <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = 1000, #best_nrounds,
+  print_every_n = 10,
+  verbose = 1)
+
+
+y_pred <- predict(checkins_model, newdata = dtest)
+comp <- cbind(y_test, y_pred)
+
+
+#importance_matrix <- xgb.importance(feature_names = colnames(x_train), model = checkins_model)
+#xgb.plot.importance(importance_matrix)
+```
+
+
