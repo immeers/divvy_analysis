@@ -1,6 +1,6 @@
 ---
 title: "divvy_model"
-author: "Sarah Deussing"
+author: "Sarah Deussing, Imogen Meers, Sarah Cernugel"
 date: "2024-11-29"
 output: html_document
 ---
@@ -21,9 +21,81 @@ colnames(divvy)
 ```{r}
 library(dplyr)
 
-# composite for uniqueness
+```
+
+
+
+```{r Cleaning Data}
+bad_stations <- c('WEST CHI-WATSON',
+'Pawel Bialowas - Test- PBSC charging station',
+'Divvy Valet - Oakwood Beach',
+'DIVVY CASSETTE REPAIR MOBILE STATION',
+'Base - 2132 W Hubbard',
+'Base - 2132 W Hubbard Warehouse',
+'NewHastings',
+'WestChi',
+'Hastings WH 2', 'MTV WH - Cassette Repair')
+dim(divvy)
+
+divvy <- divvy[!divvy$start_station_name %in% bad_stations, ]
+divvy <- divvy[!divvy$end_station_name %in% bad_stations, ]
+
+
+# List of substrings to remove
+substr_to_remove <- c("Public Rack -", "Public  Rack -", "Pubic Rack -", "City Rack -", "\\*", "- Charging", "- midblock", "- midblock south", "\\(Temp\\)", "amp;") 
+# Function to remove substrings
+remove_substrings <- function(x, substrings) {
+  for (substr in substrings) { x <- gsub(substr, "", x) } 
+  return(x) } # Apply the function to the 'name' column 
+
+divvy <- divvy %>% mutate(start_station_name = remove_substrings(start_station_name, substr_to_remove), end_station_name = remove_substrings(end_station_name, substr_to_remove) )
+
+#make sure all statiosn with same name have same id
+start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
+  group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+
+end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+  group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+divvy <- divvy %>% rename(old_start = start_station_id, old_end = end_station_id)
+
+divvy <- inner_join(divvy, start_stat, by = 'start_station_name')
+divvy <- inner_join(divvy, end_stat, by = 'end_station_name')
+
+divvy <- divvy %>% select(-old_start, -old_end)
+
+#make sure all remaining ids have the same id and same name
+start_stat <- start_stat %>% arrange(desc(start_station_name)) %>% 
+  group_by(start_station_id) %>% slice_head(n = 1) %>% ungroup()
+
+end_stat <- end_stat %>% arrange(desc(end_station_name)) %>% 
+  group_by(end_station_id) %>% slice_head(n = 1) %>% ungroup()
+
+
+divvy <- divvy %>% rename(old_start = start_station_name, old_end = end_station_name)
+
+divvy <- inner_join(divvy, start_stat, by = 'start_station_id')
+divvy <- inner_join(divvy, end_stat, by = 'end_station_id')
+
+divvy <- divvy %>% select(-old_start, -old_end)
+divvy
+
+
+stats <- full_join(start_stat, end_stat, by = c("start_station_name" = "end_station_name"))
+summary(stats[stats$start_station_id != stats$end_station_id,])
+
+```
+
+```{r}
+
+# # composite for uniqueness- no need anymore
 divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
 divvy$endId <- paste0(divvy$end_station_id, "-", divvy$end_station_name)
+
+
+# divvy$startId <- divvy$start_station_id
+# divvy$endId <- divvy$end_station_id
 
 station_starts <- divvy %>%
   count(startId) %>%
@@ -58,11 +130,21 @@ top_info <- divvy %>%
   filter(startId %in% stations | endId %in% stations)
 
 library(lubridate)
-top_info$started_at <- ymd_hms(top_info$started_at)
-top_info$ended_at <- ymd_hms(top_info$ended_at)
+# 
+# top_info$started_at <- ymd_hms(top_info$started_at)
+# top_info$ended_at <- ymd_hms(top_info$ended_at)
 
+
+top_info$started_at <- ymd_hms(top_info$started_at, tz = "America/Chicago")
+top_info$ended_at <- ymd_hms(top_info$ended_at, tz = "America/Chicago")
+# 
+# top_info$started_at <- !is.na(top_info$started_at)
+# top_info$ended_at <- !is_na.(top_info$ended_at)
 #head(top_info)
 #colnames(top_info)
+
+#daylight saviings
+top_info <- top_info[top_info$started_at <= top_info$ended_at,]
 ```
 
 % of rides covered by these stations
@@ -94,6 +176,12 @@ top_model$ride_length <- as.numeric(difftime(top_model$ended_at, top_model$start
 ```
 
 Add weather
+
+```{r}
+load("CookCountyWeather0120_0724.RData")
+weather <- weather_df
+```
+
 ```{r}
 weather <- read.csv("weather.csv")
 weather$date <- as.Date(weather$date)
@@ -226,23 +314,76 @@ comp <- cbind(y_test, y_pred)
 #xgb.plot.importance(importance_matrix)
 ```
 
+Eval
+```{r}
+
+results_out <- cbind(x_test, comp)
+results_out <- results_out %>% rename(actual = y_test, pred = y_pred)
+rows <- rownames(x_test) %>% strsplit('_') 
+results_out <- cbind(unlist(rows)[2*(1:length(rows))-1], unlist(rows)[2*(1:length(rows))], results_out) %>% rename(id = `unlist(rows)[2 * (1:length(rows)) - 1]`, date = `unlist(rows)[2 * (1:length(rows))]`) %>% mutate(date = as.Date(date))
+rownames(results_out) =NULL
+
+
+plot <- sample_n(results_out, 10000)
+
+# Plot
+ggplot(plot, aes(x = actual, y = pred)) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") + 
+  labs(title = "Checkouts-- Predictions vs. Actual Values", x = "Actual Values", y = "Predicted Values") + 
+  theme_minimal()
+
+#Conf Int
+# Calculate residuals 
+results_out$residuals <- results_out$actual - results_out$pred
+
+# Calculate margin of error for 95% confidence interval
+critical_value <- 1.96
+margin_of_error <- critical_value * sd(results_out$residuals)
+# Check if actual values are within the confidence interval
+results_out$within_interval <- (results_out$actual >= (results_out$pred - margin_of_error)) & (results_out$actual <= (results_out$pred + margin_of_error)) # Print results_out data.frame(Predictions = predictions, Actual = actual, Within_Interval = within_interval
+
+
+percent_within <-  nrow(results_out[results_out$within_interval == TRUE,])*100/nrow(results_out)
+
+percent_within
+```
+96% within 95% conf interval
+
+
+Pricing
+```{r }
+ pricing <- top_model %>% mutate(ride_cost = ifelse(member_casual == "casual", ifelse(rideable_type == "electric_bike", ride_length*0.44 +1, ride_length*0.18 +1), ifelse(rideable_type == "electric_bike",ride_length*0.18, pmax(ride_length-45, 0) * 0.18)))%>%
+  mutate(unlock_cost = ifelse(member_casual == "casual", 1, 0)) %>% group_by(startId, started_date) %>%
+  summarise(revenue = sum(ride_cost), unlock_rev = sum(unlock_cost))
+
+summary(pricing)
+# 
+# rev_model <- glm(revenue ~ checkouts + member_perc + avg_len + ebike_perc + , data = pricing)
+# summary(rev_model)
+# plot(rev_model)
+```
+
 
 
 XGBoost Model: Checkins
 ```{r}
-train_index <- sample(1:nrow(checkins_final), size = 0.8 * nrow(checkins_final))
-train_data <- checkins_final[train_index, ]
-test_data <- checkins_final[-train_index, ]
+train_index1 <- sample(1:nrow(checkins_final), size = 0.8 * nrow(checkins_final))
+train_data1 <- checkins_final[train_index1, ]
+test_data1 <- checkins_final[-train_index1, ]
 
-x_train <- train_data %>% select(-num_checkins)
-y_train <- train_data$num_checkins
+x_train1 <- train_data1 %>% select(-num_checkins)
+y_train1 <- train_data1$num_checkins
 
-x_test <- test_data %>% select(-num_checkins)
-y_test <- test_data$num_checkins
+x_test1 <- test_data1 %>% select(-num_checkins)
+y_test1 <- test_data1$num_checkins
 
-dtrain <- xgb.DMatrix(data = as.matrix(x_train), label = y_train)
-dtest <- xgb.DMatrix(data = as.matrix(x_test), label = y_test)
+dtrain1 <- xgb.DMatrix(data = as.matrix(x_train1), label = y_train1)
+dtest1 <- xgb.DMatrix(data = as.matrix(x_test1), label = y_test1)
 ```
+
+
+
 
 ```{r}
 params <- list(
@@ -252,7 +393,7 @@ params <- list(
 
 # tune nrounds
 nrounds <- xgboost(
-  data = dtrain, 
+  data = dtrain1, 
   params = params, 
   nrounds = 1000,             
   early_stopping_rounds = 50,     
@@ -263,18 +404,223 @@ best_nrounds <- nrounds$best_iteration
 
 checkins_model <- xgb.train(
   params = params,
-  data = dtrain,
+  data = dtrain1,
   nrounds = 1000, #best_nrounds,
   print_every_n = 10,
   verbose = 1)
 
 
-y_pred <- predict(checkins_model, newdata = dtest)
-comp <- cbind(y_test, y_pred)
+y_pred1 <- predict(checkins_model, newdata = dtest1)
+comp1 <- cbind(y_test1, y_pred1)
 
 
 #importance_matrix <- xgb.importance(feature_names = colnames(x_train), model = checkins_model)
 #xgb.plot.importance(importance_matrix)
 ```
 
+```{r}
+
+results_in <- cbind(x_test1, comp1)
+results_in <- results_in %>% rename(actual = y_test1, pred = y_pred1)
+rows_in <- rownames(x_test1) %>% strsplit('_') 
+results_in <- cbind(unlist(rows_in)[2*(1:length(rows_in))-1], unlist(rows_in)[2*(1:length(rows_in))], results_in) %>% rename(id = `unlist(rows_in)[2 * (1:length(rows_in)) - 1]`, date = `unlist(rows_in)[2 * (1:length(rows_in))]`) %>% mutate(date = as.Date(date))
+rownames(results_in) =NULL
+
+
+plot_in <- sample_n(results_in, 10000)
+
+# Plot
+ggplot(plot_in, aes(x = actual, y = pred)) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") + 
+  labs(title = "CheckIns-- Predictions vs. Actual Values", x = "Actual Values", y = "Predicted Values") + 
+  theme_minimal()
+
+#Conf Int
+# Calculate residuals 
+results_in$residuals <- results_in$actual - results_in$pred
+
+# Calculate margin of error for 95% confidence interval
+critical_value <- 1.96
+margin_of_error <- critical_value * sd(results_in$residuals)
+# Check if actual values are within the confidence interval
+results_in$within_interval <- (results_in$actual >= (results_in$pred - margin_of_error)) & (results_in$actual <= (results_in$pred + margin_of_error)) # Print results data.frame(Predictions = predictions, Actual = actual, Within_Interval = within_interval
+
+
+percent_within_in <-  nrow(results_in[results_in$within_interval == TRUE,])*100/nrow(results_in)
+
+percent_within_in
+```
+
+
+```{r}
+in1 = rep(times = 103, NA)
+out <- setdiff(results_out$id, results_in$id)
+in1 <- setdiff(results_in$id, results_out$id)
+df = data.frame(cbind(in1, out))
+df$in1 <- strsplit(df$in1, "-")
+
+in1 <- results_in %>% select(date, id, pred, actual) %>% rename(in_actual = actual, in_pred = pred)
+out1 <- results_out %>% select(date, id, pred, actual) %>% rename(out_actual = actual, out_pred = pred)
+pricing <- pricing %>% rename(id = startId, date = started_date) %>% select(-unlock_rev)
+data <- left_join(inner_join(pricing, out1 , by = c("id", "date")), in1, by = c("id", "date")) %>% mutate_all(~replace(., is.na(.), 0))
+
+
+# Example data frame
+# data <- data.frame(
+#   Number_of_Riders = c(50, 60, 70, 80, 90), #checkouts
+#   Number_of_Drivers = c(30, 40, 50, 60, 70), #checkins
+#   Historical_Cost_of_Ride = c(10, 15, 20, 25, 30)
+# )
+# Percentiles
+high_demand_percentile <- 75
+low_demand_percentile <- 25
+
+# Calculate percentiles
+high_demand_threshold <- quantile(data$out_actual, probs = high_demand_percentile / 100)
+low_demand_threshold <- quantile(data$out_actual, probs = low_demand_percentile / 100)
+
+# Calculate demand multiplier
+data <- data %>%
+  mutate(
+    demand_multiplier = ifelse(
+      out_actual > high_demand_threshold,
+      out_actual / high_demand_threshold,
+      out_actual / low_demand_threshold
+    )
+  )
+
+# Percentiles
+high_supply_percentile <- 75
+low_supply_percentile <- 25
+
+# Calculate percentiles
+high_supply_threshold <- quantile(data$in_actual, probs = high_supply_percentile / 100)
+low_supply_threshold <- quantile(data$in_actual, probs = low_supply_percentile / 100)
+
+# Calculate supply multiplier
+data <- data %>%
+  mutate(
+    supply_multiplier = ifelse(
+      in_actual > low_supply_threshold,
+      high_supply_threshold / in_actual,
+      low_supply_threshold / in_actual
+    )
+  )
+
+# Price adjustment factors
+demand_threshold_high <- 1.2  # Higher demand threshold
+demand_threshold_low <- 0.8   # Lower demand threshold
+supply_threshold_high <- 0.8  # Higher supply threshold
+supply_threshold_low <- 1.2   # Lower supply threshold
+
+# Calculate adjusted ride cost
+data <- data %>%
+  mutate(
+    adjusted_ride_cost = revenue * (
+      pmax(demand_multiplier, demand_threshold_low) * 
+      pmax(supply_multiplier, supply_threshold_high)
+    )
+  )
+
+# View the result
+print(data)
+
+data <- data %>% mutate(profit_percentage = ((adjusted_ride_cost - revenue) / revenue) * 100)
+
+# ID profitable rides
+profitable_rides <- data %>% filter(profit_percentage > 0)
+
+# ID rides incurring losses
+loss_rides <- data %>% filter(profit_percentage <= 0)
+
+# Calculate the count of profitable and loss rides
+profitable_count <- nrow(profitable_rides)
+loss_count <- nrow(loss_rides)
+
+# Creating a donut chart
+labels <- c('Profitable Rides', 'Loss Rides')
+values <- c(profitable_count, loss_count)
+
+library(plotly)
+fig <- plot_ly(
+  data = data.frame(labels, values),
+  labels = ~labels,
+  values = ~values,
+  type = 'pie',
+  hole = 0.4
+)
+
+fig <- fig %>%
+  layout(
+    title = 'Profitability of Rides (Dynamic Pricing vs Actual Pricing)',
+    showlegend = TRUE
+  )
+
+fig
+```
+Shows that the demand pricing would be profitable.
+Our model predicts 95-96%  of checkout/checkins daily numbers by stations within a 95% confidence interval. You can use our model to predict the checkins/checkouts for the following day. Based on those numbers you use the multipliers and threshold calculations to calculate whether you should surge pricing on that day for bikes coming out of certain racks.
+
+Should calculate how our predictions over/under could affect e.g. on how many occasions did we predict that the demand would meet a change threshold and it didn't?
+
+Can also cycle through different values for demand/supply threshold and percentile to see which is best.
+
+Maybe look at demand based pricing on a station by station basis? The percentile is based on historic numbers of that station rather than total data set. Because otherwise it's always going to be the same stations with surge pricing (unless this is what we want?)
+
+Source: https://medium.com/@mkinoti19/data-driven-dynamic-pricing-using-python-and-machine-learning-b898e0e5fbe3
+
+```{r eval = FALSE}
+test <- divvy
+
+# List of substrings to remove
+substr_to_remove <- c("Public Rack -", "Public  Rack -", "Pubic Rack -", "City Rack -", "\\*", "- Charging", "- midblock", "- midblock south", "\\(Temp\\)", "amp;") 
+# Function to remove substrings
+remove_substrings <- function(x, substrings) {
+  for (substr in substrings) { x <- gsub(substr, "", x) } 
+  return(x) } # Apply the function to the 'name' column 
+
+divvy <- divvy %>% mutate(start_station_name = remove_substrings(start_station_name, substr_to_remove), end_station_name = remove_substrings(end_station_name, substr_to_remove) )
+
+
+start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
+  group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+
+end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+  group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+
+# test <- test %>% group_by(start_station_name) %>% mutate(unique_id = start_station_id[1]) %>% ungroup() %>% select(-start_station_id) %>% rename(start_station_id = unique_id)
+# 
+# 
+# test <- test %>% group_by(end_station_name) %>% mutate(unique_id = end_station_id[1]) %>% ungroup() %>% select(-end_station_id) %>% rename(end_station_id = unique_id)
+
+# 
+# unique(test[test$start_station_name %in% setdiff(unique(test$start_station_name),unique(test$end_station_name)),]$start_station_name)
+# 
+# 
+# unique(test[test$end_station_name %in%setdiff(unique(test$end_station_name),unique(test$start_station_name)),]$end_station_name)
+
+duplicates <- start_stat %>% group_by(start_station_name) %>% filter(n_distinct(start_station_id) > 1) %>% ungroup() %>% select(start_station_id, start_station_name) %>% distinct() %>% arrange(desc(start_station_name))
+
+duplicates <- end_stat %>% group_by(end_station_name) %>% filter(n_distinct(end_station_id) > 1) %>% ungroup() %>% select(end_station_id, end_station_name) %>% distinct() %>% arrange(desc(end_station_name))
+
+
+start_stat <- test[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
+  group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+
+end_stat <- test[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+  group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+stats <- full_join(start_stat, end_stat, by = c("start_station_name" = "end_station_name"))
+summary(stats[stats$start_station_id != stats$end_station_id,])
+
+duplicates <- stats %>%  group_by(start_station_id) %>% filter(n() > 1) %>% ungroup()%>% arrange(start_station_id)
+  
+  stats[is.na(stats$start_station_id),]
+  stats[is.na(stats$end_station_id),]
+  test[test$end_station_name =='Nordica Ave & Addison St',]
+```
 
