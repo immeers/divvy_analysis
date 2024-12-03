@@ -87,6 +87,14 @@ summary(stats[stats$start_station_id != stats$end_station_id,])
 
 ```
 
+## Neighborhoods
+```{r}
+neighborhoods <- read.csv("Neighborhoods_2012b.csv")
+
+write.csv(divvy, "clean_divvy.csv")
+
+```
+
 ```{r}
 
 # # composite for uniqueness- no need anymore
