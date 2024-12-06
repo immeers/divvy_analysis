@@ -10,7 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-divvy <- read.csv("divvy_data2223.csv")
+library(data.table)
+divvy <- as.data.frame(fread("divvy_data2223.csv"))
 ```
 
 ```{r}
@@ -130,6 +131,78 @@ colnames(station_counts) <- c("station_id", "checkouts", "checkins", "total")
 top <- station_counts %>% arrange(desc(total)) %>%
   filter(total > 50000) # above 50,000 total checkins/outs
 ```
+
+get quantiles
+```{r}
+quantile(station_counts$total)
+hist_data <- hist(station_counts$total, 
+     main = "Histogram of Check-Ins and Check-Outs, Divvy 2022-2023",  
+     xlab = "Total",              
+     ylab = "Frequency",         
+     col = "lightblue",           
+     border = "black",      
+     breaks = 50,
+     xaxt = "n") 
+axis(1, at = hist_data$mids, labels = paste(
+  "[", round(hist_data$breaks[-length(hist_data$breaks)]), 
+  ",", round(hist_data$breaks[-1]), "]", sep=""), 
+  cex.axis = 0.8)  # Adjust axis text size
+```
+Bottom 50% of stations have <= 316 rides. Label these as bottom and stations with >= 50,000 as top.
+```{r}
+stations_top <-  top$station_id
+stations_bottom <- station_counts[station_counts$total <= 316,]$station_id
+
+top_locs <- divvy %>%
+  filter(startId %in% stations_top | endId %in% stations_top) %>% select(startId, endId, start_lat, start_lng, end_lat, end_lng)
+bottom_locs <- divvy %>%
+  filter(startId %in% stations_bottom | endId %in% stations_bottom) %>% select(startId, endId, start_lat, start_lng, end_lat, end_lng)
+
+top_locs <- divvy %>%
+  mutate(
+    station_name = ifelse(startId %in% stations_top, startId, endId),
+    station_lat = ifelse(startId %in% stations_top, start_lat, end_lat),
+    station_long = ifelse(startId %in% stations_top, start_lng, end_lng)) %>% 
+  select(station_name, station_lat, station_long) %>% distinct()
+
+bottom_locs <- divvy %>%
+  mutate(
+    station_name = ifelse(startId %in% stations_bottom, startId, endId),
+    station_lat = ifelse(startId %in% stations_bottom, start_lat, end_lat),
+    station_long = ifelse(startId %in% stations_bottom, start_lng, end_lng)) %>% 
+  select(station_name, station_lat, station_long) %>% distinct()
+
+top_locs <- top_locs %>%
+  mutate(station_type = "top")
+
+bottom_locs <- bottom_locs %>%
+  mutate(station_type = "bottom")
+
+top_bottom <- bind_rows(top_locs, bottom_locs)
+```
+
+```{r}
+
+library(ggplot2)
+library(maps)
+library(ggmap)
+
+
+#world_map <- map_data("world")
+chicago_map <- get_map(location = c(lon = -87.6298, lat = 41.8781), zoom = 12, source = "osm")
+ggmap(chicago_map) + 
+#ggplot(data = world_map) +
+ # geom_polygon(aes(x = long, y = lat, group = group), fill = "lightgrey", color = "white") + 
+  geom_point(data = top_bottom, aes(x = station_long, y = station_lat, color = factor(station_type)), size = 4) +  
+  scale_color_manual(values = c("red", "blue"), labels = c("Top", "Bottom")) +
+  theme_minimal() + 
+  labs(title = "Map Plot with Top-Bottom Colored Points", color = "Top-Bottom") +
+  coord_fixed(ratio = 1.1) #+
+ # xlim(-88.0, -87.5) + ylim(41.6, 42.0)
+write.csv(top_bottom, 'top_bottom.csv')
+```
+
+
 
 Get info for stations with > 50,000 total checkins/outs
 ```{r}
