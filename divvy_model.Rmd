@@ -94,6 +94,128 @@ neighborhoods <- read.csv("Neighborhoods_2012b.csv")
 
 write.csv(divvy, "clean_divvy.csv")
 
+clean_divvy <- read.csv("clean_divvy.csv")
+
+clean_divvy <- clean_divvy %>% filter(rideable_type == "classic_bike")
+
+
+# Loop through each unique start_station_name
+for(station in unique(clean_divvy$start_station_name)) {
+  
+  # Subset the data for the current station
+  station_data <- clean_divvy[clean_divvy$start_station_name == station, ]
+  
+  # Calculate the average latitude and longitude
+  avg_lat <- mean(station_data$start_lat)
+  avg_long <- mean(station_data$start_lng)
+  
+  # Add the averaged values back to the original dataset
+  clean_divvy[clean_divvy$start_station_name == station, "avg_start_lat"] <- avg_lat
+  clean_divvy[clean_divvy$start_station_name == station, "avg_start_long"] <- avg_long
+}
+
+
+# Loop through each unique start_station_name
+for(station in unique(clean_divvy$end_station_name)) {
+  
+  # Subset the data for the current station
+  station_data <- clean_divvy[clean_divvy$end_station_name == station, ]
+  
+  # Calculate the average latitude and longitude
+  avg_lat <- mean(station_data$start_lat)
+  avg_long <- mean(station_data$start_lng)
+  
+  # Add the averaged values back to the original dataset
+  clean_divvy[clean_divvy$end_station_name == station, "avg_end_lat"] <- avg_lat
+  clean_divvy[clean_divvy$end_station_name == station, "avg_end_long"] <- avg_long
+}
+
+# View the updated dataset
+print(clean_divvy)
+
+write.csv(clean_divvy, "clean_divvy_points.csv")
+
+
+for i in range(len(divvy)):  # Equivalent to iterating over the number of rows
+    # Access the lat and long values for the current row using .iloc
+    lat = divvy.iloc[i]['avg_end_lat']
+    long = divvy.iloc[i]['avg_end_long']
+    
+    # Find the neighborhood for the current lat, long
+    neighborhood = find_neighborhood(lat, long, all_neighborhoods)
+    
+    # Append the neighborhood to the list
+    divvy_neighborhood.append(neighborhood)
+    
+    # Optionally print the neighborhood for each row
+    print(f"Row {i}: Nearest Neighborhood: {neighborhood}")
+
+
+for i in neighborhoods$the_geom {
+  
+}
+
+
+# Load the necessary library
+library(sf)
+
+# Define the MULTIPOLYGON WKT (Well-Known Text) representation
+wkt <- "MULTIPOLYGON (((-87.62760697485348 41.8743709778537, -87.62759525663328 41.87386171244117, 
+                        -87.62756611032268 41.87309193343395, -87.6275551301491 41.87280194101277, 
+                        -87.62754038267394 41.8723026159864, -87.6275257358244 41.87180670894443, 
+                        -87.62751740010026 41.87152447340548, -87.62749380061312 41.870533289913496, 
+                        -87.62748640976554 41.87022285721285, -87.62747968351995 41.8698699731487, 
+                        -87.62746758964475 41.86923545315862, -87.62746178584436 41.86893095552231, 
+                        -87.62741867651467 41.86741358880028, -87.62776525665168 41.86740884836574, 
+                        -87.62791651412788 41.86740677917382, -87.62835789379616 41.867400574187975, 
+                        -87.62847483044938 41.86739872168006, -87.6285016555064 41.86739829657602, 
+                        -87.62886489441746 41.867392540895025, -87.6294510227246 41.86738627247538, 
+                        -87.62994146063357 41.86738130883445, -87.63043520045348 41.867373985964946, 
+                        -87.63045643033234 41.86832408508193, -87.63046103823288 41.86849676575636, 
+                        -87.63047842774165 41.86914840420451, -87.63049175239173 41.86964771496229, 
+                        -87.63049478033787 41.86968430855481, -87.63051202720345 41.8698927483438, 
+                        -87.63055740862784 41.870441204350946, -87.63056128061226 41.87050901480099, 
+                        -87.63056510977249 41.870576076357324, -87.63057023511439 41.87077857857081, 
+                        -87.63057420023388 41.8709260784126, -87.63057428682792 41.870929267757866, 
+                        -87.63058149972416 41.87119486693879, -87.63058916097859 41.87146415217918, 
+                        -87.63060278276006 41.8719334194333, -87.63061066642632 41.87223168661656, 
+                        -87.6306169562931 41.87246964964144, -87.630621108501 41.87264366027951, 
+                        -87.63062301810568 41.87272407838625, -87.63062680325942 41.8728578561184, 
+                        -87.63063080101777 41.87297892928771, -87.63063388056597 41.87307321326662, 
+                        -87.63063923702379 41.87323449767777, -87.63064223866382 41.87336945062947, 
+                        -87.63064686470452 41.87359738857438, -87.63065906168319 41.87401239319246, 
+                        -87.63066229700475 41.87411274261591, -87.63067547794128 41.87452163354843, 
+                        -87.63028379674365 41.87452623421518, -87.62966890774102 41.874534235064694, 
+                        -87.6294635167731 41.87453690670954, -87.62923044428344 41.874539213980704, 
+                        -87.62920969690175 41.874539419377946, -87.62891739196219 41.874542312338946, 
+                        -87.62870043471254 41.874544998116875, -87.6286855987505 41.87454518151181, 
+                        -87.62827705848584 41.87455023802575, -87.62796784305239 41.87455500774031, 
+                        -87.62766945095747 41.87455282499508, -87.62766825002093 41.8745528159692, 
+                        -87.62761115198867 41.87455239842161, -87.62760697485348 41.8743709778537)))"
+
+# Convert the WKT string into an sf object
+multipolygon <- st_as_sf(st_sfc(st_as_text(neighborhoods$the_geom)), crs = 4326)
+
+# Extract the coordinates from the multipolygon object
+coords <- st_coordinates(multipolygon)
+
+# Calculate the average latitude and longitude
+avg_lat <- mean(coords[, 2])  # Latitude values are in the second column
+avg_long <- mean(coords[, 1]) # Longitude values are in the first column
+
+# Print the average latitude and longitude
+cat("Average Latitude:", avg_lat, "\n")
+cat("Average Longitude:", avg_long, "\n")
+
+
+
+end_stations <- clean_divvy %>%
+  group_by(end_station_name) %>%
+  summarise(
+    avg_end_lat = mean(end_lat, na.rm = TRUE),
+    avg_end_lng = mean(end_lng, na.rm = TRUE)
+  )
+
 ```
 
 ```{r}
