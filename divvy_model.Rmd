@@ -147,91 +147,33 @@ end_stations <- clean_divvy %>%
   )
 
 
+# Edit multipolygon format
+neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, " ", ","))
+neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, ",,", ","))
 
 
-for i in range(len(divvy)):  # Equivalent to iterating over the number of rows
-    # Access the lat and long values for the current row using .iloc
-    lat = divvy.iloc[i]['avg_end_lat']
-    long = divvy.iloc[i]['avg_end_long']
-    
-    # Find the neighborhood for the current lat, long
-    neighborhood = find_neighborhood(lat, long, all_neighborhoods)
-    
-    # Append the neighborhood to the list
-    divvy_neighborhood.append(neighborhood)
-    
-    # Optionally print the neighborhood for each row
-    print(f"Row {i}: Nearest Neighborhood: {neighborhood}")
-
-
-
-# Convert the WKT string into an sf object
-multipolygon <- st_as_sf(st_sfc(st_as_text(neighborhoods$the_geom)), crs = 4326)
-
-# Extract the coordinates from the multipolygon object
-coords <- st_coordinates(multipolygon)
-
-# Calculate the average latitude and longitude
-avg_lat <- mean(coords[, 2])  # Latitude values are in the second column
-avg_long <- mean(coords[, 1]) # Longitude values are in the first column
-
-# Print the average latitude and longitude
-cat("Average Latitude:", avg_lat, "\n")
-cat("Average Longitude:", avg_long, "\n")
-
-
-
-
-neighborhoods <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, " ", ","))
-neighborhoods <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, ",,", ","))
-str_replace()
-
-
-# Sample dataframe
-neighborhoods <- data.frame(
+# Create polygon object and convert to sf object
+neighborhoods_edited <- data.frame(
   the_geom = c("MULTIPOLYGON(((10 40, 40 40, 40 10, 10 10, 10 40)))",
            "MULTIPOLYGON(((20 30, 30 30, 30 20, 20 20, 20 30)))"),
   stringsAsFactors = FALSE
 )
 
-# Function to convert MULTIPOLYGON string to st_polygon object
 convert_to_polygon <- function(multipolygon_string) {
-  # Extract the coordinates
+  
   coordinates <- str_extract_all(multipolygon_string, "\\(?[0-9]+\\s[0-9]+\\)?")[[1]]
   coordinates <- str_replace_all(coordinates, "\\(|\\)", "")  # Remove parentheses
   coordinates_matrix <- matrix(as.numeric(unlist(str_split(coordinates, " "))), ncol=2, byrow=TRUE)
  
-  # Create the polygon object
   st_polygon(list(coordinates_matrix))
 }
 
-# Apply the function to the column
-neighborhoods$geom_sf <- lapply(neighborhoods$the_geom, convert_to_polygon)
+neighborhoods_edited$geom_sf <- lapply(neighborhoods_edited$the_geom, convert_to_polygon)
 
-# Convert the list of polygons to an sf object
-neighborhoods$geom_sf <- st_sfc(neighborhoods$geom_sf, crs = 4326)
-
-# View the result
-print(neighborhoods)
+neighborhoods_edited$geom_sf <- st_sfc(neighborhoods_edited$geom_sf, crs = 4326)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-library(sf)
+#CURRENTLY HERE
 
 # Define MultiPolygon with two polygons
 multipolygon <- st_multipolygon(list(
@@ -293,6 +235,27 @@ if (length(polygon_found) > 0) {
 } else {
   cat("Point is not in any polygon\n")
 }
+
+
+
+
+
+
+### Doesn't work
+
+# Convert the WKT string into an sf object
+multipolygon <- st_as_sf(st_sfc(st_as_text(neighborhoods$the_geom)), crs = 4326)
+
+# Extract the coordinates from the multipolygon object
+coords <- st_coordinates(multipolygon)
+
+# Calculate the average latitude and longitude
+avg_lat <- mean(coords[, 2])  # Latitude values are in the second column
+avg_long <- mean(coords[, 1]) # Longitude values are in the first column
+
+# Print the average latitude and longitude
+cat("Average Latitude:", avg_lat, "\n")
+cat("Average Longitude:", avg_long, "\n")
 ```
 
 ```{r}
