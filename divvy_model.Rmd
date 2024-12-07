@@ -169,11 +169,13 @@ convert_to_polygon <- function(multipolygon_string) {
 }
 
 neighborhoods_edited$geom_sf <- lapply(neighborhoods_edited$the_geom, convert_to_polygon)
-
 neighborhoods_edited$geom_sf <- st_sfc(neighborhoods_edited$geom_sf, crs = 4326)
+
+class(neighborhoods_edited$geom_sf)
 
 
 #CURRENTLY HERE
+  #need to define the point
 
 # Define MultiPolygon with two polygons
 multipolygon <- st_multipolygon(list(
@@ -200,7 +202,6 @@ if (length(polygon_found) > 0) {
   cat("Point is not in any polygon\n")
 }
 
-class(neighborhoods$geom_sf)
 
 # Define the point
 for (row in end_stations){
