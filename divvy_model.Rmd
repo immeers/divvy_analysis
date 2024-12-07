@@ -130,7 +130,23 @@ for(station in unique(clean_divvy$end_station_name)) {
   clean_divvy[clean_divvy$end_station_name == station, "avg_end_long"] <- avg_long
 }
 
-write.csv(clean_divvy, "clean_divvy_points.csv")
+
+# Start and End Stations
+start_stations <- clean_divvy %>%
+  group_by(start_station_name) %>%
+  summarise(
+    avg_start_lat = mean(start_lat, na.rm = TRUE),
+    avg_start_lng = mean(start_lng, na.rm = TRUE)
+  )
+
+end_stations <- clean_divvy %>%
+  group_by(end_station_name) %>%
+  summarise(
+    avg_end_lat = mean(end_lat, na.rm = TRUE),
+    avg_end_lng = mean(end_lng, na.rm = TRUE)
+  )
+
+
 
 
 for i in range(len(divvy)):  # Equivalent to iterating over the number of rows
@@ -163,14 +179,6 @@ avg_long <- mean(coords[, 1]) # Longitude values are in the first column
 cat("Average Latitude:", avg_lat, "\n")
 cat("Average Longitude:", avg_long, "\n")
 
-
-
-end_stations <- clean_divvy %>%
-  group_by(end_station_name) %>%
-  summarise(
-    avg_end_lat = mean(end_lat, na.rm = TRUE),
-    avg_end_lng = mean(end_lng, na.rm = TRUE)
-  )
 
 
 
