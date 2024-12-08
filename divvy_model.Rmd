@@ -4,6 +4,7 @@ author: "Sarah Deussing, Imogen Meers, Sarah Cernugel"
 date: "2024-11-29"
 output: html_document
 ---
+# Divvy Analysis
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -113,6 +114,180 @@ divvy$end_station_id
 
 ```
 
+## Neighborhoods
+
+```{r}
+library(sf)
+library(dplyr)
+library(stringr)
+
+# Load in data
+neighborhoods <- read.csv("Neighborhoods_2012b.csv")
+
+write.csv(divvy, "clean_divvy.csv")
+clean_divvy <- read.csv("clean_divvy.csv")
+
+
+# Filter Data
+clean_divvy <- clean_divvy %>% filter(rideable_type == "classic_bike")
+
+
+#Average Coordinates for each start station
+for(station in unique(clean_divvy$start_station_name)) {
+
+  station_data <- clean_divvy[clean_divvy$start_station_name == station, ]
+
+  avg_lat <- mean(station_data$start_lat)
+  avg_long <- mean(station_data$start_lng)
+
+  clean_divvy[clean_divvy$start_station_name == station, "avg_start_lat"] <- avg_lat
+  clean_divvy[clean_divvy$start_station_name == station, "avg_start_long"] <- avg_long
+}
+
+
+# Average Coordinates for each end station
+for(station in unique(clean_divvy$end_station_name)) {
+  
+  station_data <- clean_divvy[clean_divvy$end_station_name == station, ]
+  
+  avg_lat <- mean(station_data$start_lat)
+  avg_long <- mean(station_data$start_lng)
+  
+  clean_divvy[clean_divvy$end_station_name == station, "avg_end_lat"] <- avg_lat
+  clean_divvy[clean_divvy$end_station_name == station, "avg_end_long"] <- avg_long
+}
+
+
+# Start and End Stations
+start_stations <- clean_divvy %>%
+  group_by(start_station_name) %>%
+  summarise(
+    avg_start_lat = mean(start_lat, na.rm = TRUE),
+    avg_start_lng = mean(start_lng, na.rm = TRUE)
+  )
+
+end_stations <- clean_divvy %>%
+  group_by(end_station_name) %>%
+  summarise(
+    avg_end_lat = mean(end_lat, na.rm = TRUE),
+    avg_end_lng = mean(end_lng, na.rm = TRUE)
+  )
+
+
+# Edit multipolygon format
+neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, " ", ","))
+neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, ",,", ","))
+
+
+# Create polygon object and convert to sf object
+neighborhoods_edited <- data.frame(
+  the_geom = c("MULTIPOLYGON(((10 40, 40 40, 40 10, 10 10, 10 40)))",
+           "MULTIPOLYGON(((20 30, 30 30, 30 20, 20 20, 20 30)))"),
+  stringsAsFactors = FALSE
+)
+
+convert_to_polygon <- function(multipolygon_string) {
+  
+  coordinates <- str_extract_all(multipolygon_string, "\\(?[0-9]+\\s[0-9]+\\)?")[[1]]
+  coordinates <- str_replace_all(coordinates, "\\(|\\)", "")  # Remove parentheses
+  coordinates_matrix <- matrix(as.numeric(unlist(str_split(coordinates, " "))), ncol=2, byrow=TRUE)
+ 
+  st_polygon(list(coordinates_matrix))
+}
+
+neighborhoods_edited$geom_sf <- lapply(neighborhoods_edited$the_geom, convert_to_polygon)
+neighborhoods_edited$geom_sf <- st_sfc(neighborhoods_edited$geom_sf, crs = 4326)
+
+class(neighborhoods_edited$geom_sf)
+
+
+#CURRENTLY HERE
+  #need to define the point
+
+# Define MultiPolygon with two polygons
+multipolygon <- st_multipolygon(list(
+  list(st_polygon(list(matrix(c(0, 0, 4, 0, 4, 4, 0, 4, 0, 0), ncol=2, byrow=TRUE)))),
+  list(st_polygon(list(matrix(c(5, 5, 9, 5, 9, 9, 5, 9, 5, 5), ncol=2, byrow=TRUE))))
+))
+
+# Define the point
+point <- st_point(c(3, 3))  # This point should be in the first polygon
+
+# Convert to sf objects
+multipolygon_sf <- st_sfc(multipolygon)
+point_sf <- st_sfc(point, crs = st_crs(multipolygon_sf))
+
+# Check which polygon contains the point
+polygon_index <- sapply(multipolygon_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
+
+# Identify which polygon contains the point
+polygon_found <- which(polygon_index, arr.ind = TRUE)
+
+if (length(polygon_found) > 0) {
+  cat("Point is in polygon", polygon_found, "\n")
+} else {
+  cat("Point is not in any polygon\n")
+}
+
+
+# Define the point
+for (row in end_stations){
+ 
+point = st_point(c(avg_end_lng[row], avg_end_lat[row]))
+# Convert to sf objects
+
+point_sf <- st_sfc(point, crs = st_crs(neighbourhoods$geom_sf))
+
+# Check which polygon contains the point
+polygon_index <- sapply(neighbourhoods$geom_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
+
+# Identify which polygon contains the point
+polygon_found <- which(polygon_index, arr.ind = TRUE)
+
+row$polygon_idx = polygon_found
+}
+
+
+# Convert to sf objects
+multipolygon_sf <- st_sfc(multipolygon)
+point_sf <- st_sfc(point, crs = st_crs(multipolygon_sf))
+
+# Check which polygon contains the point
+polygon_index <- sapply(multipolygon_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
+
+# Identify which polygon contains the point
+polygon_found <- which(polygon_index, arr.ind = TRUE)
+
+if (length(polygon_found) > 0) {
+  cat("Point is in polygon", polygon_found, "\n")
+} else {
+  cat("Point is not in any polygon\n")
+}
+
+
+
+
+
+
+### Doesn't work
+
+# Convert the WKT string into an sf object
+multipolygon <- st_as_sf(st_sfc(st_as_text(neighborhoods$the_geom)), crs = 4326)
+
+# Extract the coordinates from the multipolygon object
+coords <- st_coordinates(multipolygon)
+
+# Calculate the average latitude and longitude
+avg_lat <- mean(coords[, 2])  # Latitude values are in the second column
+avg_long <- mean(coords[, 1]) # Longitude values are in the first column
+
+# Print the average latitude and longitude
+cat("Average Latitude:", avg_lat, "\n")
+cat("Average Longitude:", avg_long, "\n")
+```
+
+
+
 ```{r}
 
 # # composite for uniqueness- no need anymore
@@ -152,7 +327,84 @@ top <- station_counts %>% arrange(desc(total))
 top <- top[1:ceiling(0.75 * nrow(station_counts)),]
 ```
 
-Get info for stations with > 50,000 total checkins/outs -> top 75%
+## Histogram
+Get quantiles
+```{r}
+quantile(station_counts$total)
+hist_data <- hist(station_counts$total, 
+     main = "Histogram of Check-Ins and Check-Outs, Divvy 2022-2023",  
+     xlab = "Total",              
+     ylab = "Frequency",         
+     col = "lightblue",           
+     border = "black",      
+     breaks = 50,
+     xaxt = "n") 
+axis(1, at = hist_data$mids, labels = paste(
+  "[", round(hist_data$breaks[-length(hist_data$breaks)]), 
+  ",", round(hist_data$breaks[-1]), "]", sep=""), 
+  cex.axis = 0.8)  # Adjust axis text size
+```
+
+
+## Stations Plot
+Bottom 50% of stations have <= 316 rides. Label these as bottom and stations with >= 50,000 as top.
+```{r}
+stations_top <-  top$station_id
+stations_bottom <- station_counts[station_counts$total <= 316,]$station_id
+
+top_locs <- divvy %>%
+  filter(startId %in% stations_top | endId %in% stations_top) %>% select(startId, endId, start_lat, start_lng, end_lat, end_lng)
+bottom_locs <- divvy %>%
+  filter(startId %in% stations_bottom | endId %in% stations_bottom) %>% select(startId, endId, start_lat, start_lng, end_lat, end_lng)
+
+top_locs <- divvy %>%
+  mutate(
+    station_name = ifelse(startId %in% stations_top, startId, endId),
+    station_lat = ifelse(startId %in% stations_top, start_lat, end_lat),
+    station_long = ifelse(startId %in% stations_top, start_lng, end_lng)) %>% 
+  select(station_name, station_lat, station_long) %>% distinct()
+
+bottom_locs <- divvy %>%
+  mutate(
+    station_name = ifelse(startId %in% stations_bottom, startId, endId),
+    station_lat = ifelse(startId %in% stations_bottom, start_lat, end_lat),
+    station_long = ifelse(startId %in% stations_bottom, start_lng, end_lng)) %>% 
+  select(station_name, station_lat, station_long) %>% distinct()
+
+top_locs <- top_locs %>%
+  mutate(station_type = "top")
+
+bottom_locs <- bottom_locs %>%
+  mutate(station_type = "bottom")
+
+top_bottom <- bind_rows(top_locs, bottom_locs)
+```
+
+
+```{r}
+
+library(ggplot2)
+library(maps)
+library(ggmap)
+
+
+#world_map <- map_data("world")
+chicago_map <- get_map(location = c(lon = -87.6298, lat = 41.8781), zoom = 12, source = "osm")
+ggmap(chicago_map) + 
+#ggplot(data = world_map) +
+ # geom_polygon(aes(x = long, y = lat, group = group), fill = "lightgrey", color = "white") + 
+  geom_point(data = top_bottom, aes(x = station_long, y = station_lat, color = factor(station_type)), size = 4) +  
+  scale_color_manual(values = c("red", "blue"), labels = c("Top", "Bottom")) +
+  theme_minimal() + 
+  labs(title = "Map Plot with Top-Bottom Colored Points", color = "Top-Bottom") +
+  coord_fixed(ratio = 1.1) #+
+ # xlim(-88.0, -87.5) + ylim(41.6, 42.0)
+write.csv(top_bottom, 'top_bottom.csv')
+```
+
+
+
+Get info for stations with > 50,000 total checkins/outs
 ```{r}
 stations <- top$station_id
 top_info <- divvy %>%
