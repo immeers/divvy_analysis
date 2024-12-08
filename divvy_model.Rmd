@@ -47,7 +47,7 @@ clean_data <- function(divvy, boolean_24){
   divvy <- divvy[!divvy$start_station_name %in% bad_stations, ]
   divvy <- divvy[!divvy$end_station_name %in% bad_stations, ]
   
-  divvy <- divvy %>% filter(rideable_type != "electric_bike")
+  divvy <- divvy %>% filter(rideable_type != "electric_bike", rideable_type != "electric_scooter")
   # List of substrings to remove
   substr_to_remove <- c("Public Rack -", "Public  Rack -", "Pubic Rack -", "City Rack -", "\\*", "- Charging", "- midblock", "- midblock south", "\\(Temp\\)", "amp;") 
   # Function to remove substrings
@@ -61,20 +61,20 @@ clean_data <- function(divvy, boolean_24){
   
   
   if (boolean_24 == TRUE){
-       start_stat <- divvy[,c(5,6)] %>% distinct() %>% arrange(desc(start_station_name)) %>%
+       start_stat <- divvy %>% select(start_station_name, start_station_id) %>% distinct() %>% arrange(desc(start_station_name)) %>%
     group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
        
-       end_stat <- divvy[,c(7,8)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+       end_stat <-divvy %>% select(end_station_name, end_station_id) %>% distinct() %>% arrange(desc(end_station_name)) %>% 
     group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
   }
   else{
 
   #make sure all statiosn with same name have same id
-    start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>%
-  group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
-
-    end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>%
-  group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+    start_stat <- divvy %>% select(start_station_name, start_station_id) %>% distinct() %>% arrange(desc(start_station_name)) %>%
+    group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
+       
+       end_stat <-divvy %>% select(end_station_name, end_station_id) %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+    group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
   } 
    
   
@@ -138,50 +138,51 @@ neighborhoods <- read.csv("Neighborhoods_2012b.csv")
 #clean_divvy <- clean_divvy %>% filter(rideable_type == "classic_bike")
 
 clean_divvy <- divvy
+# 
+# #Average Coordinates for each start station
+# for(station in unique(clean_divvy$start_station_name)) {
+# 
+#   station_data <- clean_divvy[clean_divvy$start_station_name == station, ]
+# 
+#   avg_lat <- mean(station_data$start_lat)
+#   avg_long <- mean(station_data$start_lng)
+# 
+#   clean_divvy[clean_divvy$start_station_name == station, "avg_start_lat"] <- avg_lat
+#   clean_divvy[clean_divvy$start_station_name == station, "avg_start_long"] <- avg_long
+# }
+# 
+# clean_divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
+# 
 
-#Average Coordinates for each start station
-for(station in unique(clean_divvy$start_station_name)) {
 
-  station_data <- clean_divvy[clean_divvy$start_station_name == station, ]
-
-  avg_lat <- mean(station_data$start_lat)
-  avg_long <- mean(station_data$start_lng)
-
-  clean_divvy[clean_divvy$start_station_name == station, "avg_start_lat"] <- avg_lat
-  clean_divvy[clean_divvy$start_station_name == station, "avg_start_long"] <- avg_long
-}
-
-clean_divvy$start_station_name <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
-
-
-
-# Average Coordinates for each end station
-for(station in unique(clean_divvy$end_station_name)) {
-  
-  station_data <- clean_divvy[clean_divvy$end_station_name == station, ]
-  
-  avg_lat <- mean(station_data$start_lat)
-  avg_long <- mean(station_data$start_lng)
-  
-  clean_divvy[clean_divvy$end_station_name == station, "avg_end_lat"] <- avg_lat
-  clean_divvy[clean_divvy$end_station_name == station, "avg_end_long"] <- avg_long
-}
-
+# # Average Coordinates for each end station
+# for(station in unique(clean_divvy$end_station_name)) {
+#   
+#   station_data <- clean_divvy[clean_divvy$end_station_name == station, ]
+#   
+#   avg_lat <- mean(station_data$start_lat)
+#   avg_long <- mean(station_data$start_lng)
+#   
+#   clean_divvy[clean_divvy$end_station_name == station, "avg_end_lat"] <- avg_lat
+#   clean_divvy[clean_divvy$end_station_name == station, "avg_end_long"] <- avg_long
+# }
+clean_divvy$start_lat = as.numeric(clean_divvy$start_lat)
+clean_divvy$start_lng = as.numeric(clean_divvy$start_lng)
 
 # Start and End Stations
 start_stations <- clean_divvy %>%
-  group_by(start_station_name) %>%
+  group_by(startId) %>%
   summarise(
     avg_start_lat = mean(start_lat, na.rm = TRUE),
     avg_start_lng = mean(start_lng, na.rm = TRUE)
   )
 
-end_stations <- clean_divvy %>%
-  group_by(end_station_name) %>%
-  summarise(
-    avg_end_lat = mean(end_lat, na.rm = TRUE),
-    avg_end_lng = mean(end_lng, na.rm = TRUE)
-  )
+# end_stations <- clean_divvy %>%
+#   group_by(end_station_name) %>%
+#   summarise(
+#     avg_end_lat = mean(end_lat, na.rm = TRUE),
+#     avg_end_lng = mean(end_lng, na.rm = TRUE)
+#   )
 
 
 # Convert avg_start_lat and avg_start_long into sf points
@@ -266,6 +267,7 @@ divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
 divvy$endId <- paste0(divvy$end_station_id, "-", divvy$end_station_name)
 divvy %>% arrange(endId)
 
+divvy[divvy$endId == "-",]
 # divvy$startId <- divvy$start_station_id
 # divvy$endId <- divvy$end_station_id
 
@@ -724,6 +726,10 @@ percent_within_in
 ## 24 Predicition
 2024 data is 2024-01-10 to 2024-07-31 
 ```{r 24 Prediction}
+
+checkouts_model <- readRDS("checkoutsModel.RData")
+checkins_model <- readRDS("checkinsModel.RData")
+
 #CHECKOUTS
 test_data <- checkouts_final
 
@@ -731,6 +737,16 @@ library(xgboost)
 
 x_test <- test_data %>% select(-num_checkouts)
 y_test <- test_data$num_checkouts
+
+missing_cols <- c("monthAugust", "monthDecember", "monthNovember", "monthOctober", "monthSeptember") 
+for (col in missing_cols) {
+  x_test[[col]] <- 0 
+}#add missing cols
+
+x_test <- x_test %>% select(avg_ppt, avg_temp, prev_num_checkouts, prev_avg_ride_length, prev_perc_member, monthApril, monthAugust, monthDecember, monthFebruary, monthJanuary, monthJuly, monthJune, monthMarch, monthMay, monthNovember, monthOctober, monthSeptember, dayFriday, dayMonday, daySaturday, daySunday, dayThursday, dayTuesday, dayWednesday) #reorder to be the same as model features
+
+
+
 
 dtest <- xgb.DMatrix(data = as.matrix(x_test), label = y_test)
 y_pred <- predict(checkouts_model, newdata = dtest)
@@ -750,6 +766,10 @@ for (col in missing_cols) {
   x_test1[[col]] <- 0 
 }
 
+x_test1 <- x_test1 %>% select(avg_ppt, avg_temp, prev_num_checkins, prev_avg_ride_length, prev_perc_member, monthApril, monthAugust, monthDecember, monthFebruary, monthJanuary, monthJuly, monthJune, monthMarch, monthMay, monthNovember, monthOctober, monthSeptember, dayFriday, dayMonday, daySaturday, daySunday, dayThursday, dayTuesday, dayWednesday) #reorder to be the same as model features
+
+
+
 dtest1 <- xgb.DMatrix(data = as.matrix(x_test1), label = y_test1)
 #dtest1 <- dtest1[, checkins_model$feature_names]
 y_pred1 <- predict(checkins_model, newdata = dtest1)
@@ -763,6 +783,84 @@ comp1 <- cbind(y_test1, y_pred1)
 summary(pricing)
 
 ```
+```{r PRED 24}
+results_in <- cbind(x_test1, comp1)
+results_in <- results_in %>% rename(actual = y_test1, pred = y_pred1)
+rows_in <- rownames(x_test1) %>% strsplit('_') 
+results_in <- cbind(unlist(rows_in)[2*(1:length(rows_in))-1], unlist(rows_in)[2*(1:length(rows_in))], results_in) %>% rename(id = `unlist(rows_in)[2 * (1:length(rows_in)) - 1]`, date = `unlist(rows_in)[2 * (1:length(rows_in))]`) %>% mutate(date = as.Date(date))
+rownames(results_in) =NULL
+
+results_in <- results_in %>% filter(id != "-")
+
+results_out <- cbind(x_test, comp)
+results_out <- results_out %>% rename(actual = y_test, pred = y_pred)
+rows <- rownames(x_test) %>% strsplit('_') 
+results_out <- cbind(unlist(rows)[2*(1:length(rows))-1], unlist(rows)[2*(1:length(rows))], results_out) %>% rename(id = `unlist(rows)[2 * (1:length(rows)) - 1]`, date = `unlist(rows)[2 * (1:length(rows))]`) %>% mutate(date = as.Date(date))
+rownames(results_out) =NULL
+
+```
+
+
+
+```{r 24 in eval}
+plot_in <- sample_n(results_in, 10000)
+
+# Plot
+ggplot(plot_in, aes(x = actual, y = pred)) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") + 
+  labs(title = "CheckIns-- Predictions vs. Actual Values", x = "Actual Values", y = "Predicted Values") + 
+  theme_minimal()
+
+#Conf Int
+# Calculate residuals 
+results_in$residuals <- results_in$actual - results_in$pred
+
+# Calculate margin of error for 95% confidence interval
+critical_value <- 1.96
+margin_of_error <- critical_value * sd(results_in$residuals)
+# Check if actual values are within the confidence interval
+results_in$within_interval <- (results_in$actual >= (results_in$pred - margin_of_error)) & (results_in$actual <= (results_in$pred + margin_of_error)) # Print results data.frame(Predictions = predictions, Actual = actual, Within_Interval = within_interval
+
+
+percent_within_in <-  nrow(results_in[results_in$within_interval == TRUE,])*100/nrow(results_in)
+
+percent_within_in
+```
+
+```{r}
+results_out <- cbind(x_test, comp)
+results_out <- results_out %>% rename(actual = y_test, pred = y_pred)
+rows <- rownames(x_test) %>% strsplit('_') 
+results_out <- cbind(unlist(rows)[2*(1:length(rows))-1], unlist(rows)[2*(1:length(rows))], results_out) %>% rename(id = `unlist(rows)[2 * (1:length(rows)) - 1]`, date = `unlist(rows)[2 * (1:length(rows))]`) %>% mutate(date = as.Date(date))
+rownames(results_out) =NULL
+
+
+plot <- sample_n(results_out, 10000)
+
+# Plot
+ggplot(plot, aes(x = actual, y = pred)) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") + 
+  labs(title = "Checkouts-- Predictions vs. Actual Values", x = "Actual Values", y = "Predicted Values") + 
+  theme_minimal()
+
+#Conf Int
+# Calculate residuals 
+results_out$residuals <- results_out$actual - results_out$pred
+
+# Calculate margin of error for 95% confidence interval
+critical_value <- 1.96
+margin_of_error <- critical_value * sd(results_out$residuals)
+# Check if actual values are within the confidence interval
+results_out$within_interval <- (results_out$actual >= (results_out$pred - margin_of_error)) & (results_out$actual <= (results_out$pred + margin_of_error)) # Print results_out data.frame(Predictions = predictions, Actual = actual, Within_Interval = within_interval
+
+
+percent_within <-  nrow(results_out[results_out$within_interval == TRUE,])*100/nrow(results_out)
+
+percent_within
+```
+
 
 
 ## Dynamic Pricing
@@ -779,9 +877,10 @@ pricing <- pricing %>% rename(id = startId, date = started_date) %>% select(-unl
 data <- left_join(inner_join(pricing, out1 , by = c("id", "date")), in1, by = c("id", "date")) %>% na.omit()
 
 
+data <- data %>% inner_join(start_stations, by = c("id" = "startId")) 
 
 #replace this with acc neighbourhoods
-data <- data %>% group_by(id) %>% mutate(neighbourhood = sample(c(1:5), size =1))
+#data <- data %>% group_by(id) %>% mutate(neighbourhood = sample(c(1:98), size =1))
 
 # Example data frame
 # data <- data.frame(
@@ -797,12 +896,8 @@ low_demand_percentile <- 25
 # high_demand_threshold <- data %>% quantile(out_actual, probs = high_demand_percentile / 100)
 # low_demand_threshold <- data %>% quantile(out_actual, probs = low_demand_percentile / 100)
 
-data <- data  %>% group_by(neighbourhood) %>% mutate(high_demand_threshold = quantile(in_actual, probs = high_demand_percentile / 100, na.rm = TRUE))
-data <- data %>% group_by(neighbourhood) %>% mutate(low_demand_threshold = quantile(in_actual, probs = low_demand_percentile / 100, na.rm = TRUE))
-
-
-zero <- data[data$in_actual == 0 & data$out_actual == 0,]
-
+data <- data  %>% group_by(neighborhood) %>% mutate(high_demand_threshold = quantile(in_actual, probs = high_demand_percentile / 100, na.rm = TRUE))
+data <- data %>% group_by(neighborhood) %>% mutate(low_demand_threshold = quantile(in_actual, probs = low_demand_percentile / 100, na.rm = TRUE))
 
 # Calculate demand multiplier
 data <- data %>% ungroup() %>%
@@ -825,9 +920,9 @@ low_supply_percentile <- 25
 # low_supply_threshold <- data %>% quantile(pmin(out_actual,in_actual), probs = low_supply_percentile / 100)
 # 
 
-data <- data  %>% group_by(neighbourhood) %>% mutate(high_supply_threshold = quantile(in_actual, probs = high_supply_percentile / 100, na.rm = TRUE))
+data <- data  %>% group_by(neighborhood) %>% mutate(high_supply_threshold = quantile(in_actual, probs = high_supply_percentile / 100, na.rm = TRUE))
                                               
-data <- data %>% group_by(neighbourhood) %>% mutate(low_supply_threshold = quantile(in_actual, probs = low_supply_percentile / 100, na.rm = TRUE))
+data <- data %>% group_by(neighborhood) %>% mutate(low_supply_threshold = quantile(in_actual, probs = low_supply_percentile / 100, na.rm = TRUE))
 
 # Calculate supply multiplier
 data <- data %>% ungroup() %>%
@@ -840,10 +935,10 @@ data <- data %>% ungroup() %>%
   )
 
 # Price adjustment factors
-demand_threshold_high <- 1.2  # Higher demand threshold
-demand_threshold_low <- 0.8   # Lower demand threshold
-supply_threshold_high <- 0.8  # Higher supply threshold
-supply_threshold_low <- 1.2   # Lower supply threshold
+# demand_threshold_high <- 1.2  # Higher demand threshold
+# demand_threshold_low <- 0.8   # Lower demand threshold
+# supply_threshold_high <- 0.8  # Higher supply threshold
+# supply_threshold_low <- 1.2   # Lower supply threshold
 
 # Price adjustment factors
 demand_threshold_high <- 1.1  # Higher demand threshold
@@ -866,20 +961,23 @@ data <- data %>% ungroup() %>%
 print(data)
 
 data <- data %>% mutate(profit_percentage = ((adjusted_ride_cost - revenue) / revenue) * 100)
+data <- data %>% mutate(profit_percentage = ifelse(is.nan(profit_percentage), 0, profit_percentage))
 
 # ID profitable rides
 profitable_rides <- data %>% filter(profit_percentage > 0)
 
+net_zero <- data %>% filter(profit_percentage == 0)
 # ID rides incurring losses
-loss_rides <- data %>% filter(profit_percentage <= 0)
+loss_rides <- data %>% filter(profit_percentage < 0)
 
 # Calculate the count of profitable and loss rides
 profitable_count <- nrow(profitable_rides)
 loss_count <- nrow(loss_rides)
+net_zero_count <- nrow(net_zero)
 
 # Creating a donut chart
-labels <- c('Profitable Rides', 'Loss Rides')
-values <- c(profitable_count, loss_count)
+labels <- c('Profitable Rides', 'Loss Rides', 'Net Zero Rides')
+values <- c(profitable_count, loss_count, net_zero_count)
 
 library(plotly)
 fig <- plot_ly(
@@ -897,7 +995,12 @@ fig <- fig %>%
   )
 
 fig
+
+
+fwrite(data, "dpp24_data.csv")
 ```
+
+
 ```{r}
 data %>% group_by(id) %>% summarise(sum(revenue), sum(adjusted_ride_cost)) %>% arrange(desc(`sum(revenue)`))
 ```
