@@ -112,6 +112,11 @@ divvy <- divvy24 %>% na.omit ##only run this if making 24 preds
 
 summary(divvy)
 
+neighborhood_counts <- start_stations %>%
+  group_by(neighborhood) %>%
+  summarise(station_count = n()) %>%
+  ungroup()
+
 ```
 
 ## Neighborhoods
