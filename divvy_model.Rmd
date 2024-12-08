@@ -32,7 +32,7 @@ library(dplyr)
 
 ## Clean
 ```{r Cleaning Data}
-clean_data <- function(divvy){
+clean_data <- function(divvy, boolean_24){
   bad_stations <- c('WEST CHI-WATSON',
   'Pawel Bialowas - Test- PBSC charging station',
   'Divvy Valet - Oakwood Beach',
@@ -59,18 +59,24 @@ clean_data <- function(divvy){
   
   divvy <- divvy %>% mutate(start_station_name = remove_substrings(start_station_name, substr_to_remove), end_station_name = remove_substrings(end_station_name, substr_to_remove) )
   
-  #make sure all statiosn with same name have same id
-  # start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
-  #   group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
   
-   start_stat <- divvy[,c(5,6)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
+  if (boolean_24 == TRUE){
+       start_stat <- divvy[,c(5,6)] %>% distinct() %>% arrange(desc(start_station_name)) %>%
     group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
-   
-  # end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
-  #   group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
-   
-   end_stat <- divvy[,c(7,8)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+       
+       end_stat <- divvy[,c(7,8)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
     group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+  }
+  else{
+
+  #make sure all statiosn with same name have same id
+    start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>%
+  group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
+
+    end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>%
+  group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
+  } 
+   
   
    
    
@@ -103,10 +109,10 @@ summary(stats[stats$start_station_id != stats$end_station_id,])
 
 
 #22-23 build model
-divvy <- clean_data(divvy)
+divvy <- clean_data(divvy, FALSE)
 
 #make 24 predictions
-divvy24 <- clean_data(divvy24)
+divvy24 <- clean_data(divvy24, TRUE)
 
 divvy <- divvy24 %>% na.omit ##only run this if making 24 preds
 
@@ -255,8 +261,7 @@ neighborhood_counts <- start_stations %>%
 
 
 ```{r}
-divvy24[divvy24$start_station_id == "",]
-# # composite for uniqueness- no need anymore
+# composite for uniqueness- no need anymore
 divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
 divvy$endId <- paste0(divvy$end_station_id, "-", divvy$end_station_name)
 divvy %>% arrange(endId)
