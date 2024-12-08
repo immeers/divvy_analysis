@@ -107,10 +107,10 @@ divvy <- clean_data(divvy)
 
 #make 24 predictions
 divvy24 <- clean_data(divvy24)
-divvy <- divvy24 %>% na.omit
+
+divvy <- divvy24 %>% na.omit ##only run this if making 24 preds
 
 summary(divvy)
-divvy$end_station_id
 
 ```
 
@@ -125,12 +125,13 @@ library(stringr)
 neighborhoods <- read.csv("Neighborhoods_2012b.csv")
 
 #write.csv(divvy, "clean_divvy.csv")
-clean_divvy <- read.csv("clean_divvy.csv")
+#clean_divvy <- read.csv("clean_divvy.csv")
 
 
 # Filter Data
-clean_divvy <- clean_divvy %>% filter(rideable_type == "classic_bike")
+#clean_divvy <- clean_divvy %>% filter(rideable_type == "classic_bike")
 
+clean_divvy <- divvy
 
 #Average Coordinates for each start station
 for(station in unique(clean_divvy$start_station_name)) {
@@ -143,6 +144,9 @@ for(station in unique(clean_divvy$start_station_name)) {
   clean_divvy[clean_divvy$start_station_name == station, "avg_start_lat"] <- avg_lat
   clean_divvy[clean_divvy$start_station_name == station, "avg_start_long"] <- avg_long
 }
+
+clean_divvy$start_station_name <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
+
 
 
 # Average Coordinates for each end station
