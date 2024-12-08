@@ -124,7 +124,7 @@ library(stringr)
 # Load in data
 neighborhoods <- read.csv("Neighborhoods_2012b.csv")
 
-write.csv(divvy, "clean_divvy.csv")
+#write.csv(divvy, "clean_divvy.csv")
 clean_divvy <- read.csv("clean_divvy.csv")
 
 
@@ -174,116 +174,72 @@ end_stations <- clean_divvy %>%
   )
 
 
-# Edit multipolygon format
-neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, " ", ","))
-neighborhoods_edited <- neighborhoods %>% mutate(the_geom = str_replace_all(the_geom, ",,", ","))
+# Convert avg_start_lat and avg_start_long into sf points
+stations_sf <- start_stations %>%
+  st_as_sf(coords = c("avg_start_lng", "avg_start_lat"), crs = 4326, remove = FALSE)
 
 
-# Create polygon object and convert to sf object
-neighborhoods_edited <- data.frame(
-  the_geom = c("MULTIPOLYGON(((10 40, 40 40, 40 10, 10 10, 10 40)))",
-           "MULTIPOLYGON(((20 30, 30 30, 30 20, 20 20, 20 30)))"),
-  stringsAsFactors = FALSE
-)
+# Clean up the_geom column by removing extra spaces and unwanted characters
+neighborhoods_cleaned <- neighborhoods %>%
+  mutate(the_geom = str_replace_all(the_geom, "\\(\\(", "("),  # fix double open parentheses
+         the_geom = str_replace_all(the_geom, "\\)\\)", ")"),  # fix double close parentheses
+         the_geom = str_replace_all(the_geom, "\\s+", " "),    # remove extra spaces
+         the_geom = str_replace_all(the_geom, ",\\s+", ","))   # remove spaces after commas
 
+# Function to convert the_geom into a valid POLYGON or MULTIPOLYGON object
 convert_to_polygon <- function(multipolygon_string) {
+  # Remove "MULTIPOLYGON" prefix and extra parentheses
+  multipolygon_string <- gsub("MULTIPOLYGON\\(\\(", "", multipolygon_string)
+  multipolygon_string <- gsub("\\)\\)", "", multipolygon_string)
   
-  coordinates <- str_extract_all(multipolygon_string, "\\(?[0-9]+\\s[0-9]+\\)?")[[1]]
+  # Extract coordinates, remove any unwanted characters, and split by commas
+  coordinates <- str_extract_all(multipolygon_string, "\\(?[0-9.-]+\\s+[0-9.-]+\\)?")[[1]]
   coordinates <- str_replace_all(coordinates, "\\(|\\)", "")  # Remove parentheses
-  coordinates_matrix <- matrix(as.numeric(unlist(str_split(coordinates, " "))), ncol=2, byrow=TRUE)
- 
-  st_polygon(list(coordinates_matrix))
+  
+  # Convert coordinates into numeric matrix
+  coords_matrix <- matrix(as.numeric(unlist(str_split(coordinates, " "))), ncol = 2, byrow = TRUE)
+  
+  # Ensure the polygon is closed by adding the first point to the end
+  if (!identical(coords_matrix[1, ], coords_matrix[nrow(coords_matrix), ])) {
+    coords_matrix <- rbind(coords_matrix, coords_matrix[1, ])
+  }
+  
+  # Create a POLYGON from the coordinates
+  st_polygon(list(coords_matrix))
 }
 
-neighborhoods_edited$geom_sf <- lapply(neighborhoods_edited$the_geom, convert_to_polygon)
-neighborhoods_edited$geom_sf <- st_sfc(neighborhoods_edited$geom_sf, crs = 4326)
+# Apply the conversion to the_geom
+neighborhoods_sf <- neighborhoods_cleaned %>%
+  mutate(geom_sf = st_sfc(lapply(the_geom, convert_to_polygon), crs = 4326)) %>%
+  st_as_sf()
 
-class(neighborhoods_edited$geom_sf)
-
-
-#CURRENTLY HERE
-  #need to define the point
-
-# Define MultiPolygon with two polygons
-multipolygon <- st_multipolygon(list(
-  list(st_polygon(list(matrix(c(0, 0, 4, 0, 4, 4, 0, 4, 0, 0), ncol=2, byrow=TRUE)))),
-  list(st_polygon(list(matrix(c(5, 5, 9, 5, 9, 9, 5, 9, 5, 5), ncol=2, byrow=TRUE))))
-))
-
-# Define the point
-point <- st_point(c(3, 3))  # This point should be in the first polygon
-
-# Convert to sf objects
-multipolygon_sf <- st_sfc(multipolygon)
-point_sf <- st_sfc(point, crs = st_crs(multipolygon_sf))
-
-# Check which polygon contains the point
-polygon_index <- sapply(multipolygon_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
-
-# Identify which polygon contains the point
-polygon_found <- which(polygon_index, arr.ind = TRUE)
-
-if (length(polygon_found) > 0) {
-  cat("Point is in polygon", polygon_found, "\n")
-} else {
-  cat("Point is not in any polygon\n")
-}
+# Check the class of geom_sf to confirm it was successfully converted
+class(neighborhoods_sf$geom_sf)
 
 
-# Define the point
-for (row in end_stations){
- 
-point = st_point(c(avg_end_lng[row], avg_end_lat[row]))
-# Convert to sf objects
+# Ensure the CRS matches
+st_crs(stations_sf) <- st_crs(neighborhoods_sf)
 
-point_sf <- st_sfc(point, crs = st_crs(neighbourhoods$geom_sf))
+# Create a new column in clean_divvy for the neighborhood
+start_stations$neighborhood <- NA  # Initialize with NA
 
-# Check which polygon contains the point
-polygon_index <- sapply(neighbourhoods$geom_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
 
-# Identify which polygon contains the point
-polygon_found <- which(polygon_index, arr.ind = TRUE)
+# Loop through each row in clean_divvy
+for (i in 1:nrow(stations_sf)) {
+  point_sf <- stations_sf[i, ]  # The point from clean_divvy
 
-row$polygon_idx = polygon_found
+  # Check which neighborhood polygon contains the point
+  containing_neighborhood <- which(sapply(neighborhoods_sf$geom_sf, function(neigh) st_contains(neigh, point_sf, sparse = FALSE)))
+  
+  if (length(containing_neighborhood) > 0) {
+    # If a neighborhood contains the point, assign the corresponding PRI_NEIGH value
+    start_stations$neighborhood[i] <- neighborhoods$PRI_NEIGH[containing_neighborhood]
+  }
 }
 
 
-# Convert to sf objects
-multipolygon_sf <- st_sfc(multipolygon)
-point_sf <- st_sfc(point, crs = st_crs(multipolygon_sf))
-
-# Check which polygon contains the point
-polygon_index <- sapply(multipolygon_sf, function(polygon) st_contains(polygon, point_sf, sparse = FALSE))
-
-# Identify which polygon contains the point
-polygon_found <- which(polygon_index, arr.ind = TRUE)
-
-if (length(polygon_found) > 0) {
-  cat("Point is in polygon", polygon_found, "\n")
-} else {
-  cat("Point is not in any polygon\n")
-}
-
-
-
-
-
-
-### Doesn't work
-
-# Convert the WKT string into an sf object
-multipolygon <- st_as_sf(st_sfc(st_as_text(neighborhoods$the_geom)), crs = 4326)
-
-# Extract the coordinates from the multipolygon object
-coords <- st_coordinates(multipolygon)
-
-# Calculate the average latitude and longitude
-avg_lat <- mean(coords[, 2])  # Latitude values are in the second column
-avg_long <- mean(coords[, 1]) # Longitude values are in the first column
-
-# Print the average latitude and longitude
-cat("Average Latitude:", avg_lat, "\n")
-cat("Average Longitude:", avg_long, "\n")
+#write.csv(start_stations, "start_station_neighborhoods.csv")
+length(unique(start_stations$neighborhood))
 ```
 
 
