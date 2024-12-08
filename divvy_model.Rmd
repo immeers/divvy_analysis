@@ -63,13 +63,13 @@ clean_data <- function(divvy){
   # start_stat <- divvy[,c(4,5)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
   #   group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
   
-   start_stat <- divvy[,c(10,12)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
+   start_stat <- divvy[,c(5,6)] %>% distinct() %>% arrange(desc(start_station_name)) %>% 
     group_by(start_station_name) %>% slice_head(n = 1) %>% ungroup()
    
   # end_stat <- divvy[,c(6,7)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
   #   group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
    
-   end_stat <- divvy[,c(11,13)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
+   end_stat <- divvy[,c(7,8)] %>% distinct() %>% arrange(desc(end_station_name)) %>% 
     group_by(end_station_name) %>% slice_head(n = 1) %>% ungroup()
   
    
