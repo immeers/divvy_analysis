@@ -47,7 +47,7 @@ clean_data <- function(divvy){
   divvy <- divvy[!divvy$start_station_name %in% bad_stations, ]
   divvy <- divvy[!divvy$end_station_name %in% bad_stations, ]
   
-  
+  divvy <- divvy %>% filter(rideable_type != "electric_bike")
   # List of substrings to remove
   substr_to_remove <- c("Public Rack -", "Public  Rack -", "Pubic Rack -", "City Rack -", "\\*", "- Charging", "- midblock", "- midblock south", "\\(Temp\\)", "amp;") 
   # Function to remove substrings
@@ -255,7 +255,7 @@ neighborhood_counts <- start_stations %>%
 
 
 ```{r}
-
+divvy24[divvy24$start_station_id == "",]
 # # composite for uniqueness- no need anymore
 divvy$startId <- paste0(divvy$start_station_id, "-", divvy$start_station_name)
 divvy$endId <- paste0(divvy$end_station_id, "-", divvy$end_station_name)
@@ -290,7 +290,7 @@ top <- station_counts %>% arrange(desc(total)) %>%
   filter(total > 50000) # above 50,000 total checkins/outs
 
 top <- station_counts %>% arrange(desc(total))
-top <- top[1:ceiling(0.75 * nrow(station_counts)),]
+top <- top[1:ceiling(0.25 * nrow(station_counts)),]
 ```
 
 ## Histogram
@@ -746,7 +746,7 @@ for (col in missing_cols) {
 }
 
 dtest1 <- xgb.DMatrix(data = as.matrix(x_test1), label = y_test1)
-dtest1 <- dtest1[, checkins_model$feature_names]
+#dtest1 <- dtest1[, checkins_model$feature_names]
 y_pred1 <- predict(checkins_model, newdata = dtest1)
 comp1 <- cbind(y_test1, y_pred1)
 
