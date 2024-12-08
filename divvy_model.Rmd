@@ -244,6 +244,12 @@ for (i in 1:nrow(stations_sf)) {
 
 #write.csv(start_stations, "start_station_neighborhoods.csv")
 length(unique(start_stations$neighborhood))
+
+
+neighborhood_counts <- start_stations %>%
+  group_by(neighborhood) %>%
+  summarise(station_count = n()) %>%
+  ungroup()
 ```
 
 
