@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(data.table)
 divvy <- fread("divvy_data2223.csv")
 divvy24 <- fread("divvy24.csv")
-
+neighborhoods <- fread("start_station_neighborhoods.csv")
 summary(divvy24)
 
 ```
@@ -807,6 +807,8 @@ out1 <- results_out %>% select(date, id, pred, actual) %>% rename(out_actual = a
 pricing <- pricing %>% rename(id = startId, date = started_date) %>% select(-unlock_rev)
 data <- left_join(inner_join(pricing, out1 , by = c("id", "date")), in1, by = c("id", "date")) %>% na.omit()
 
+
+data
 data <- data %>% group_by(id) %>% mutate(neighbourhood = sample(c(1:5), size =1))
 
 # Example data frame
