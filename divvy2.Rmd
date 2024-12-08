@@ -29,6 +29,11 @@ result_df <- result_df  %>% mutate(start_date = as.Date(started_at)) %>% mutate(
 
 data23_4 <- result_df %>% filter(started_at > as.Date("2022-01-01") & started_at < as.Date("2024-01-01"))
 
+divvy24 <- result_df %>% filter( started_at >= as.Date("2024-01-01"))
+
+library(data.table)
+fwrite(divvy24, "divvy24.csv")
+
 write.table()
 data23_4 <- data23_4 %>% select(-ride_id)
 head(data23_4)
