@@ -877,7 +877,7 @@ pricing <- pricing %>% rename(id = startId, date = started_date) %>% select(-unl
 data <- left_join(inner_join(pricing, out1 , by = c("id", "date")), in1, by = c("id", "date")) %>% na.omit()
 
 
-data <- data %>% inner_join(start_stations, by = c("id" = "startId")) 
+data <- data %>% inner_join(start_stations, by = c("id" = "startId")) %>% mutate(neighborhood = ifelse(is.na(neighborhood), "Evanston", neighborhood))
 
 #replace this with acc neighbourhoods
 #data <- data %>% group_by(id) %>% mutate(neighbourhood = sample(c(1:98), size =1))
@@ -896,6 +896,8 @@ low_demand_percentile <- 25
 # high_demand_threshold <- data %>% quantile(out_actual, probs = high_demand_percentile / 100)
 # low_demand_threshold <- data %>% quantile(out_actual, probs = low_demand_percentile / 100)
 
+
+#make the quartiles based on actual data
 data <- data  %>% group_by(neighborhood) %>% mutate(high_demand_threshold = quantile(in_actual, probs = high_demand_percentile / 100, na.rm = TRUE))
 data <- data %>% group_by(neighborhood) %>% mutate(low_demand_threshold = quantile(in_actual, probs = low_demand_percentile / 100, na.rm = TRUE))
 
@@ -903,9 +905,10 @@ data <- data %>% group_by(neighborhood) %>% mutate(low_demand_threshold = quanti
 data <- data %>% ungroup() %>%
   mutate(
     demand_multiplier = ifelse(
-      out_actual > high_demand_threshold,
-      out_actual / high_demand_threshold,
-      out_actual / low_demand_threshold
+      out_pred > high_demand_threshold,
+      out_pred / high_demand_threshold,
+      ifelse(out_pred < low_demand_threshold,
+      out_pred / low_demand_threshold, 1)
     )
   )
 
@@ -920,6 +923,8 @@ low_supply_percentile <- 25
 # low_supply_threshold <- data %>% quantile(pmin(out_actual,in_actual), probs = low_supply_percentile / 100)
 # 
 
+
+#make the quartiles based on actual data
 data <- data  %>% group_by(neighborhood) %>% mutate(high_supply_threshold = quantile(in_actual, probs = high_supply_percentile / 100, na.rm = TRUE))
                                               
 data <- data %>% group_by(neighborhood) %>% mutate(low_supply_threshold = quantile(in_actual, probs = low_supply_percentile / 100, na.rm = TRUE))
@@ -928,9 +933,10 @@ data <- data %>% group_by(neighborhood) %>% mutate(low_supply_threshold = quanti
 data <- data %>% ungroup() %>%
   mutate(
     supply_multiplier = ifelse(
-      in_actual > low_supply_threshold,
-      high_supply_threshold / in_actual,
-      low_supply_threshold / in_actual
+      in_pred > high_supply_threshold,
+      high_supply_threshold / in_pred,
+      ifelse(in_pred < low_demand_threshold,
+      low_supply_threshold / in_pred, 1)
     )
   )
 
@@ -996,6 +1002,8 @@ fig <- fig %>%
 
 fig
 
+data %>% filter(neighborhood == "Woodlawn")
+unique(data$neighborhood)
 
 fwrite(data, "dpp24_data.csv")
 ```
